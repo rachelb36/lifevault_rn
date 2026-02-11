@@ -1,8 +1,8 @@
 import React from "react";
 import { Modal, View, Text, TouchableOpacity, TextInput } from "react-native";
 import { Calendar, X } from "lucide-react-native";
-import { formatDateLabel } from "@/lib/date";
-import type { Dateish } from "../../types";
+import { formatDateLabel } from "@/shared/utils/date";
+import type { Dateish } from "../../../domain/types";
 
 export function MedicationModal(props: {
   visible: boolean;

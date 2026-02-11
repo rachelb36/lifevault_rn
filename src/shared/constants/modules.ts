@@ -1,5 +1,5 @@
 import { Activity, AlertCircle, Shield, Phone, Plane, User, FileText, Heart, GraduationCap } from "lucide-react-native";
-import { Module } from "@/lib/types/profile";
+import { Module } from "@/features/profiles/domain/types";
 
 export const CORE_MODULES: Module[] = [
   { id: "medical", name: "Medical Information", icon: Activity },

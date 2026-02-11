@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, ScrollView, TextInput, Pressable, Modal, Alert, Linking, Share } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Search, Plus, Camera, Upload, Shield, Lock, FileText, Calendar, User, X, ChevronRight, Share2 } from 'lucide-react-native';
-import KeyboardDismiss from '@/components/KeyboardDismiss';
+import KeyboardDismiss from '@/shared/ui/KeyboardDismiss';
 
 // Types
 type DocumentType = 'insurance' | 'id' | 'medical' | 'vaccination' | 'other';

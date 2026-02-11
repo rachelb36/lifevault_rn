@@ -1,7 +1,7 @@
 import React from "react";
 import { View, Text, Pressable } from "react-native";
 import { Plus, Minus } from "lucide-react-native";
-import { Module, ModuleType } from "@/lib/types/profile";
+import { Module, ModuleType } from "@/features/profiles/domain/types";
 
 type Props = {
   modules: Module[];

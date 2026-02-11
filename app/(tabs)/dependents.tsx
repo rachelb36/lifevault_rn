@@ -15,8 +15,8 @@ import { Plus, Search, User, PawPrint, ChevronRight, X } from "lucide-react-nati
 import { useFocusEffect, useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as SecureStore from "expo-secure-store";
-import { ThemeToggle } from "@/components/ThemeToggle";
-import KeyboardDismiss from "@/components/KeyboardDismiss";
+import { ThemeToggle } from "@/shared/ui/ThemeToggle";
+import KeyboardDismiss from "@/shared/ui/KeyboardDismiss";
 
 // ✅ People-only (no pets)
 export type DependentProfile = {

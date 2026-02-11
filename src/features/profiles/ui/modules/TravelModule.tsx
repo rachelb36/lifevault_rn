@@ -4,9 +4,9 @@ import { ChevronRight, Edit, Plus, MoreVertical } from "lucide-react-native";
 import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
 import * as SecureStore from "expo-secure-store";
-import DatePickerModal from "@/components/DatePickerModal";
-import { PassportItem, LoyaltyProgram } from "@/lib/types/profile";
-import { parseDate, formatDateLabel } from "@/lib/date";
+import DatePickerModal from "@/shared/ui/DatePickerModal";
+import { PassportItem, LoyaltyProgram } from "@/features/profiles/domain/types";
+import { parseDate, formatDateLabel } from "@/shared/utils/date";
 
 // types and date helpers moved to shared libs
 

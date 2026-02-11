@@ -14,14 +14,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Search, Plus, Phone, Mail, X, Edit, Trash, User, Star, ChevronRight, MapPin } from 'lucide-react-native';
 import { cssInterop } from 'nativewind';
 import { useFocusEffect, useRouter } from 'expo-router';
-import KeyboardDismiss from '@/components/KeyboardDismiss';
+import KeyboardDismiss from '@/shared/ui/KeyboardDismiss';
 import {
   Contact,
   ContactCategory,
   deleteContact as deleteContactStorage,
   getContacts,
   saveContacts,
-} from '@/lib/storage/contacts';
+} from '@/features/contacts/data/storage';
 
 // Enable className styling for icons
 cssInterop(Search, { className: { target: 'style', nativeStyleToProp: { color: true } } });

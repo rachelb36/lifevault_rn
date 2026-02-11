@@ -4,8 +4,8 @@ import { Stack } from "expo-router";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ApolloProvider } from "@apollo/client";
 import { apolloClient } from "@/lib/apollo";
-import { ThemeProvider } from "@/components/ThemeProvider";
-import "@/global.css";
+import { ThemeProvider } from "@/shared/ui/ThemeProvider";
+import "../global.css";
 
 export default function RootLayout() {
   return (

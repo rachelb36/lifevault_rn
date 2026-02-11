@@ -3,12 +3,12 @@ import React, { useEffect, useState } from "react";
 import { View, Text, TextInput, Pressable, Alert, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Lock, Mail, Fingerprint } from "lucide-react-native";
-import { ThemeToggle } from "@/components/ThemeToggle";
+import { ThemeToggle } from "@/shared/ui/ThemeToggle";
 import { useRouter } from "expo-router";
 import { gql, useMutation } from "@apollo/client";
 import * as SecureStore from "expo-secure-store";
-import KeyboardDismiss from "@/components/KeyboardDismiss";
-import { getLocalAuth, getLocalOnlyMode, seedLocalData, setLocalAuth, setLocalUser } from "@/lib/storage/local";
+import KeyboardDismiss from "@/shared/ui/KeyboardDismiss";
+import { getLocalAuth, getLocalOnlyMode, seedLocalData, setLocalAuth, setLocalUser } from "@/shared/utils/localStorage";
 
 const LOGIN = gql`
   mutation Login($email: String!, $password: String!) {

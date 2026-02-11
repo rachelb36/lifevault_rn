@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ThemeToggle } from '@/components/ThemeToggle';
+import { ThemeToggle } from '@/shared/ui/ThemeToggle';
 import { Plus, User, FileText, Users, Bell, PawPrint, Share2 } from 'lucide-react-native';
 import { cssInterop } from 'nativewind';
 import { useRouter } from 'expo-router';

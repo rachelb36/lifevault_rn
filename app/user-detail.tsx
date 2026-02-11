@@ -5,11 +5,11 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { User, Smartphone, ArrowRight, ArrowLeft, Share2 } from "lucide-react-native";
 import { gql, useQuery } from "@apollo/client";
 import * as SecureStore from "expo-secure-store";
-import KeyboardDismiss from "@/components/KeyboardDismiss";
-import NameFields from "@/components/forms/NameFields";
-import { getLocalOnlyMode, getLocalUser, setLocalUser } from "@/lib/storage/local";
-import ProfileShareModal from "@/components/share/ProfileShareModal";
-import { ShareSection, shareProfilePdf } from "@/lib/share/profilePdf";
+import KeyboardDismiss from "@/shared/ui/KeyboardDismiss";
+import NameFields from "@/shared/ui/NameFields";
+import { getLocalOnlyMode, getLocalUser, setLocalUser } from "@/shared/utils/localStorage";
+import ProfileShareModal from "@/shared/ui/ProfileShareModal";
+import { ShareSection, shareProfilePdf } from "@/shared/share/profilePdf";
 
 const ME = gql`
   query Me {

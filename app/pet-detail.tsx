@@ -4,9 +4,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, ChevronDown, ChevronUp, Heart, FileText, Phone, Shield, Calendar, Activity, AlertCircle, Plus, PawPrint, Share2 } from 'lucide-react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import KeyboardDismiss from '@/components/KeyboardDismiss';
-import ProfileShareModal from "@/components/share/ProfileShareModal";
-import { ShareSection, shareProfilePdf } from "@/lib/share/profilePdf";
+import KeyboardDismiss from '@/shared/ui/KeyboardDismiss';
+import ProfileShareModal from "@/shared/ui/ProfileShareModal";
+import { ShareSection, shareProfilePdf } from "@/shared/share/profilePdf";
 
 // Types
 type ModuleType = 'medical' | 'vaccinations' | 'insurance' | 'documents' | 'emergency';

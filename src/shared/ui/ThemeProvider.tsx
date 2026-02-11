@@ -1,7 +1,7 @@
 // ThemeProvider.tsx
 import { useColorScheme } from 'nativewind';
 import { View } from 'react-native';
-import { lightTheme, darkTheme } from '../theme';
+import { lightTheme, darkTheme } from '../../../theme';
 
 interface ThemeProviderProps {
   children: React.ReactNode;

@@ -6,7 +6,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { ChevronRight } from "lucide-react-native";
 import { useRouter } from "expo-router";
 import * as SecureStore from "expo-secure-store";
-import { getLocalOnlyMode, getLocalUser, setLocalUser } from "@/lib/storage/local";
+import { getLocalOnlyMode, getLocalUser, setLocalUser } from "@/shared/utils/localStorage";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 

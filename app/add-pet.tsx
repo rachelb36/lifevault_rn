@@ -20,13 +20,13 @@ import {
 import { useLocalSearchParams, useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-import KeyboardDismiss from "@/components/KeyboardDismiss";
-import DatePickerModal from "@/components/DatePickerModal";
-import { toIsoDateOnly, parseDate, formatDateLabel } from "@/lib/date";
-import { getLocalOnlyMode } from "@/lib/storage/local";
+import KeyboardDismiss from "@/shared/ui/KeyboardDismiss";
+import DatePickerModal from "@/shared/ui/DatePickerModal";
+import { toIsoDateOnly, parseDate, formatDateLabel } from "@/shared/utils/date";
+import { getLocalOnlyMode } from "@/shared/utils/localStorage";
 
-import { KIND_OPTIONS, DOG_BREEDS, CAT_BREEDS } from "@/src/features/pets/constants";
-import { MY_VAULTS, CREATE_VAULT, CREATE_ENTITY, UPSERT_RECORD } from "@/src/features/pets/graphql";
+import { KIND_OPTIONS, DOG_BREEDS, CAT_BREEDS } from "@/features/pets/domain/constants";
+import { MY_VAULTS, CREATE_VAULT, CREATE_ENTITY, UPSERT_RECORD } from "@/features/pets/data/graphql";
 import type {
   ChecklistItem,
   Medication,
@@ -34,16 +34,16 @@ import type {
   ServiceProvider,
   VaccinationRecord,
   Dateish,
-} from "@/src/features/pets/types";
-import { mergeChecklistPreservingCustom } from "@/src/features/pets/checklist";
+} from "@/features/pets/domain/types";
+import { mergeChecklistPreservingCustom } from "@/features/pets/domain/checklist";
 
-import { AccordionSection } from "@/src/features/pets/components/AccordionSection";
-import { CustomSelect } from "@/src/features/pets/components/CustomSelect";
-import { VaccinationModal } from "@/src/features/pets/components/modals/VaccinationModal";
-import { ServiceDocumentModal } from "@/src/features/pets/components/modals/ServiceDocumentModal";
-import { MedicationModal } from "@/src/features/pets/components/modals/MedicationModal";
-import { ProviderModal } from "@/src/features/pets/components/modals/ProviderModal";
-import { ChecklistAddItemModal } from "@/src/features/pets/components/modals/ChecklistAddItemModal";
+import { AccordionSection } from "@/features/pets/ui/components/AccordionSection";
+import { CustomSelect } from "@/features/pets/ui/components/CustomSelect";
+import { VaccinationModal } from "@/features/pets/ui/components/modals/VaccinationModal";
+import { ServiceDocumentModal } from "@/features/pets/ui/components/modals/ServiceDocumentModal";
+import { MedicationModal } from "@/features/pets/ui/components/modals/MedicationModal";
+import { ProviderModal } from "@/features/pets/ui/components/modals/ProviderModal";
+import { ChecklistAddItemModal } from "@/features/pets/ui/components/modals/ChecklistAddItemModal";
 
 export default function AddPetScreen() {
   const router = useRouter();

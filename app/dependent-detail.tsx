@@ -3,24 +3,24 @@ import { View, Text, ScrollView, Pressable, Image, TouchableOpacity, Alert, Text
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Heart, Calendar, Share2, User as UserIcon } from 'lucide-react-native'; 
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import KeyboardDismiss from '@/components/KeyboardDismiss';
-import TravelModule from '@/components/modules/TravelModule';
-import ProfileShareModal from "@/components/share/ProfileShareModal";
-import { ShareSection, shareProfilePdf } from "@/lib/share/profilePdf";
-import { Module, ModuleType, DependentProfile, TravelData, PassportItem, LoyaltyProgram } from "@/lib/types/profile";
-import { parseDate, toIsoDateOnly, formatDateLabel } from "@/lib/date";
-import { COUNTRY_OPTIONS } from "@/lib/constants/options";
-import { CORE_MODULES, ALL_MODULES } from "@/lib/constants/modules";
-import { findDependent, updateDependent } from "@/lib/storage/dependents";
-import ModuleAccordion from "@/components/accordion/ModuleAccordion";
-import MedicalModule from "@/components/modules/MedicalModule";
-import VaccinationsModule from "@/components/modules/VaccinationsModule";
-import InsuranceModule from "@/components/modules/InsuranceModule";
-import EmergencyContactsModule from "@/components/modules/EmergencyContactsModule";
-import DocumentsModule from "@/components/modules/DocumentsModule";
-import EducationModule from "@/components/modules/EducationModule";
-import ActivitiesModule from "@/components/modules/ActivitiesModule";
-import AcademicModule from "@/components/modules/AcademicModule";
+import KeyboardDismiss from '@/shared/ui/KeyboardDismiss';
+import TravelModule from '@/features/profiles/ui/modules/TravelModule';
+import ProfileShareModal from "@/shared/ui/ProfileShareModal";
+import { ShareSection, shareProfilePdf } from "@/shared/share/profilePdf";
+import { Module, ModuleType, DependentProfile, TravelData, PassportItem, LoyaltyProgram } from "@/features/profiles/domain/types";
+import { parseDate, toIsoDateOnly, formatDateLabel } from "@/shared/utils/date";
+import { COUNTRY_OPTIONS } from "@/shared/constants/options";
+import { CORE_MODULES, ALL_MODULES } from "@/shared/constants/modules";
+import { findDependent, updateDependent } from "@/features/profiles/data/storage";
+import ModuleAccordion from "@/shared/ui/ModuleAccordion";
+import MedicalModule from "@/features/profiles/ui/modules/MedicalModule";
+import VaccinationsModule from "@/features/profiles/ui/modules/VaccinationsModule";
+import InsuranceModule from "@/features/profiles/ui/modules/InsuranceModule";
+import EmergencyContactsModule from "@/features/profiles/ui/modules/EmergencyContactsModule";
+import DocumentsModule from "@/features/profiles/ui/modules/DocumentsModule";
+import EducationModule from "@/features/profiles/ui/modules/EducationModule";
+import ActivitiesModule from "@/features/profiles/ui/modules/ActivitiesModule";
+import AcademicModule from "@/features/profiles/ui/modules/AcademicModule";
 
 const MODULE_DEFAULTS = {
   medical: "",

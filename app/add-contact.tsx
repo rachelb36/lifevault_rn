@@ -12,14 +12,14 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ChevronDown, Check } from "lucide-react-native";
 import * as SecureStore from "expo-secure-store";
-import KeyboardDismiss from "@/components/KeyboardDismiss";
+import KeyboardDismiss from "@/shared/ui/KeyboardDismiss";
 import {
   Contact,
   ContactCategory,
   LinkedProfile,
   getContacts,
   upsertContact,
-} from "@/lib/storage/contacts";
+} from "@/features/contacts/data/storage";
 
 type SelectProps = {
   label: string;

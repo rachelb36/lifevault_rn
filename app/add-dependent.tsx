@@ -9,13 +9,13 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ArrowLeft, Calendar, User as UserIcon } from "lucide-react-native";
-import DatePickerModal from "@/components/DatePickerModal";
+import DatePickerModal from "@/shared/ui/DatePickerModal";
 import { gql, useApolloClient, useMutation } from "@apollo/client";
 import * as SecureStore from "expo-secure-store";
-import KeyboardDismiss from "@/components/KeyboardDismiss";
-import NameFields from "@/components/forms/NameFields";
-import { getLocalOnlyMode } from "@/lib/storage/local";
-import { toIsoDateOnly, formatDateLabel } from "@/lib/date";
+import KeyboardDismiss from "@/shared/ui/KeyboardDismiss";
+import NameFields from "@/shared/ui/NameFields";
+import { getLocalOnlyMode } from "@/shared/utils/localStorage";
+import { toIsoDateOnly, formatDateLabel } from "@/shared/utils/date";
 
 const MY_VAULTS = gql`
   query MyVaults {

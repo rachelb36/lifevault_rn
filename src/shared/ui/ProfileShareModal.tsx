@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Modal, View, Text, Pressable, ScrollView } from "react-native";
 import { Check } from "lucide-react-native";
-import { ShareSection } from "@/lib/share/profilePdf";
+import { ShareSection } from "@/shared/share/profilePdf";
 
 type Props = {
   visible: boolean;

@@ -1,4 +1,4 @@
-import NotesModule, { NotesModuleProps } from "@/components/modules/NotesModule";
+import NotesModule, { NotesModuleProps } from "@/features/profiles/ui/modules/NotesModule";
 
 type Props = Omit<NotesModuleProps, "title" | "placeholder" | "emptyText">;
 
