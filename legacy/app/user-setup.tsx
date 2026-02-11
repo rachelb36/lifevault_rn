@@ -24,11 +24,11 @@ export default function PrimarySetupScreen() {
           </View>
           
           <Text className="text-3xl font-bold text-foreground text-center mb-3">
-            Set up your Primary Profile
+            Set up your Profile
           </Text>
           
           <Text className="text-muted-foreground text-center text-base leading-relaxed max-w-xs">
-            Create your main profile to store essential information for yourself
+          Create your profile to store essential information for yourself
           </Text>
         </View>
 
@@ -36,7 +36,7 @@ export default function PrimarySetupScreen() {
         <View className="gap-4">
           {/* Create New Button */}
           <TouchableOpacity
-            onPress={() => router.push('/primary-profile-form')}
+            onPress={() => router.push('/add-user')}
             className="bg-card border border-border rounded-2xl p-6 active:opacity-80"
           >
             <View className="flex-row items-center justify-between">
@@ -83,6 +83,13 @@ export default function PrimarySetupScreen() {
             </View>
           </TouchableOpacity>
         </View>
+        <TouchableOpacity
+  onPress={() => router.replace("/(tabs)")}
+  className="mt-6 items-center"
+  activeOpacity={0.8}
+>
+  <Text className="text-primary font-semibold">Skip for now</Text>
+</TouchableOpacity>
 
         {/* Info Note */}
         <View className="mt-8 bg-muted/50 rounded-xl p-4">

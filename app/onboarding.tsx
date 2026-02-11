@@ -1,14 +1,18 @@
-import React, { useState, useRef } from 'react';
-import { View, Text, ScrollView, Dimensions, TouchableOpacity, Image } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { ChevronRight } from 'lucide-react-native';
-import { useRouter } from 'expo-router';
+// app/onboarding.tsx
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+import React, { useRef, useState } from "react";
+import { View, Text, ScrollView, Dimensions, TouchableOpacity, Image, Alert } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { ChevronRight } from "lucide-react-native";
+import { useRouter } from "expo-router";
+import * as SecureStore from "expo-secure-store";
+import { getLocalOnlyMode, getLocalUser, setLocalUser } from "@/lib/storage/local";
+
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 type SlideData = {
   id: number;
-  imageUri?: string;
+  image?: number;
   title: string;
   subtitle?: string;
   bullets?: string[];
@@ -17,24 +21,24 @@ type SlideData = {
 const slides: SlideData[] = [
   {
     id: 1,
-    imageUri: 'https://images.unsplash.com/photo-1635099404457-91c3d0dade3b?w=900&auto=format&fit=crop&q=60&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8NHx8MyUyMGdyYXBoaWNzfGVufDB8fDB8fHww',
-    title: 'A calmer way to keep what matters.',
+    image: require("../assets/images/calm.png"),
+    title: "A calmer way to keep what matters.",
+    subtitle:
+      "LifeVault helps you organize important information for the people and pets you care for — so it’s ready when you need it most.\n\nNo clutter. No noise. Just clarity.",
   },
   {
     id: 2,
-    title: 'Privacy & Storage',
-    bullets: [
-      'Stored on your device, protected by Face ID. No accounts. No data selling.',
-      'You can restore from iCloud device backup (Apple-managed).',
-    ],
+    image: require("../assets/images/privacy.png"),
+    title: "Privacy & Storage",
+    subtitle:
+      "Your information stays with you.\n\nIf you use iCloud device backup, your information will be restored automatically when you get a new phone.",
+
   },
   {
     id: 3,
-    title: 'Control & Sharing',
-    bullets: [
-      'Share/print only when you choose.',
-      'Sensitive notes are excluded by default.',
-    ],
+    image: require("../assets/images/control.png"),
+    title: "Control & Sharing\nYour information stays with you.",
+    subtitle: "Share or print information only when you choose.\n\nSensitive notes are kept private by default and are never included unless you explicitly allow it.\n\nYou’re always in control.",
   },
 ];
 
@@ -43,16 +47,42 @@ export default function OnboardingScreen() {
   const [currentSlide, setCurrentSlide] = useState(0);
   const scrollViewRef = useRef<ScrollView>(null);
 
-  const handleContinue = () => {
+  const completing = false;
+
+  const handleContinue = async () => {
+    // not last slide → advance
     if (currentSlide < slides.length - 1) {
-      // Go to next slide
       scrollViewRef.current?.scrollTo({
         x: (currentSlide + 1) * SCREEN_WIDTH,
         animated: true,
       });
-    } else {
-      // Navigate to Primary Setup Gate
-      router.replace('/primary-setup');
+      return;
+    }
+
+    // last slide → mark onboarding complete + go to primary setup
+    try {
+      const localOnly = await getLocalOnlyMode();
+      if (localOnly) {
+        const current = await getLocalUser();
+        await setLocalUser({
+          id: current?.id || `local-${Date.now()}`,
+          email: current?.email || "",
+          firstName: current?.firstName || "",
+          lastName: current?.lastName || "",
+          preferredName: current?.preferredName || "",
+          hasOnboarded: true,
+        });
+      }
+
+      router.replace({ pathname: "/add-dependent", params: { primary: "true" } });
+    } catch {
+      await Promise.allSettled([
+        SecureStore.deleteItemAsync("accessToken"),
+        SecureStore.deleteItemAsync("refreshToken"),
+      ]);
+
+      Alert.alert("Session expired", "Please sign in again.");
+      router.replace("/");
     }
   };
 
@@ -78,22 +108,25 @@ export default function OnboardingScreen() {
             style={{ width: SCREEN_WIDTH }}
             className="flex-1 px-6 justify-center items-center"
           >
-            {/* Image for Welcome screen */}
-            {slide.imageUri && (
+            {slide.image ? (
               <Image
-                source={{ uri: slide.imageUri }}
+                source={slide.image}
                 className="w-64 h-64 rounded-3xl mb-12"
                 resizeMode="cover"
               />
-            )}
+            ) : null}
 
-            {/* Title */}
             <Text className="text-3xl font-bold text-foreground text-center mb-8 px-4">
               {slide.title}
             </Text>
 
-            {/* Bullet points */}
-            {slide.bullets && (
+            {slide.subtitle ? (
+              <Text className="text-base text-muted-foreground text-center leading-relaxed mb-8 px-6">
+                {slide.subtitle}
+              </Text>
+            ) : null}
+
+            {slide.bullets ? (
               <View className="gap-6 px-4">
                 {slide.bullets.map((bullet, index) => (
                   <View key={index} className="flex-row gap-3">
@@ -104,7 +137,7 @@ export default function OnboardingScreen() {
                   </View>
                 ))}
               </View>
-            )}
+            ) : null}
           </View>
         ))}
       </ScrollView>
@@ -114,22 +147,32 @@ export default function OnboardingScreen() {
         {slides.map((_, index) => (
           <View
             key={index}
-            className={`h-2 rounded-full transition-all ${
-              index === currentSlide ? 'w-8 bg-primary' : 'w-2 bg-muted'
-            }`}
+            className={`h-2 rounded-full ${index === currentSlide ? "w-8 bg-primary" : "w-2 bg-muted"}`}
           />
         ))}
       </View>
 
-      {/* Continue Button */}
+      {/* Actions */}
       <View className="px-6 pb-8">
         <TouchableOpacity
-          onPress={handleContinue}
-          className="bg-primary rounded-2xl py-4 px-6 flex-row items-center justify-between"
+          onPress={async () => {
+            await SecureStore.setItemAsync("skipOnboarding", "true");
+            router.replace({ pathname: "/add-dependent", params: { primary: "true" } });
+          }}
+          className="items-center mb-4"
           activeOpacity={0.8}
         >
+          <Text className="text-primary font-semibold">Skip for now</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={handleContinue}
+          disabled={completing}
+          className="bg-primary rounded-2xl py-4 px-6 flex-row items-center justify-between"
+          activeOpacity={0.8}
+          style={{ opacity: completing ? 0.7 : 1 }}
+        >
           <Text className="text-primary-foreground text-lg font-semibold flex-1 text-center">
-            {currentSlide === slides.length - 1 ? 'Get Started' : 'Continue'}
+            {currentSlide === slides.length - 1 ? (completing ? "Finishing…" : "Get Started") : "Continue"}
           </Text>
           <ChevronRight size={24} className="text-primary-foreground" />
         </TouchableOpacity>

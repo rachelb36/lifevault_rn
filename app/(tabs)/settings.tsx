@@ -15,8 +15,7 @@ import {
   LogOut,
   AlertCircle
 } from 'lucide-react-native';
-import { useColorScheme } from 'nativewind';
-import { cssInterop } from 'nativewind';
+import { cssInterop, useColorScheme } from 'nativewind';
 
 // Enable className styling for icons
 cssInterop(Shield, { className: { target: 'style', nativeStyleToProp: { color: true } } });

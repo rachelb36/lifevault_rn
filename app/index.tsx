@@ -1,69 +1,157 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, Pressable, Alert, ActivityIndicator } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Lock, Mail, Fingerprint } from 'lucide-react-native';
-import { ThemeToggle } from '@/components/ThemeToggle';
-import { useRouter } from 'expo-router';
+// app/index.tsx
+import React, { useEffect, useState } from "react";
+import { View, Text, TextInput, Pressable, Alert, ActivityIndicator } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Lock, Mail, Fingerprint } from "lucide-react-native";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import { useRouter } from "expo-router";
+import { gql, useMutation } from "@apollo/client";
+import * as SecureStore from "expo-secure-store";
+import KeyboardDismiss from "@/components/KeyboardDismiss";
+import { getLocalAuth, getLocalOnlyMode, seedLocalData, setLocalAuth, setLocalUser } from "@/lib/storage/local";
 
-export default function LoginScreen() {
+const LOGIN = gql`
+  mutation Login($email: String!, $password: String!) {
+    login(input: { email: $email, password: $password }) {
+      token
+      user { id email name }
+    }
+  }
+`;
+
+export default function IndexGateAndLogin() {
   const router = useRouter();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+
+  const [checkingExistingSession, setCheckingExistingSession] = useState(true);
+
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
 
+  const [login, { loading: loggingIn }] = useMutation(LOGIN);
+
+  const isLoading = checkingExistingSession || loggingIn;
+
+  // Boot check: if token exists, route user forward
+  useEffect(() => {
+    let cancelled = false;
+
+    const boot = async () => {
+      try {
+        const token = await SecureStore.getItemAsync("accessToken");
+        if (!token) return;
+
+        const primaryCreated = await SecureStore.getItemAsync("primaryProfileCreated");
+        if (primaryCreated === "true") {
+          router.replace("/(tabs)");
+        } else {
+          router.replace({ pathname: "/add-dependent", params: { primary: "true" } });
+        }
+      } catch {
+        // Bad/expired token or backend unreachable → clear and stay on login
+        await Promise.allSettled([
+          SecureStore.deleteItemAsync("accessToken"),
+          SecureStore.deleteItemAsync("refreshToken"),
+        ]);
+      } finally {
+        if (!cancelled) setCheckingExistingSession(false);
+      }
+    };
+
+    boot();
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
+
   const handleLogin = async () => {
-    if (!email || !password) {
-      Alert.alert('Required Fields', 'Please enter both email and password.');
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail || !password) {
+      Alert.alert("Required Fields", "Please enter both email and password.");
       return;
     }
 
-    setIsLoading(true);
-    
-    // Simulate login - in real app, this would validate credentials
-    setTimeout(() => {
-      setIsLoading(false);
-      // Check if user has seen onboarding (mock - would be stored in AsyncStorage)
-      const hasSeenOnboarding = false;
-      
-      if (hasSeenOnboarding) {
-        router.replace('/(tabs)');
+    try {
+      const localOnly = await getLocalOnlyMode();
+      if (localOnly) {
+        const existingAuth = await getLocalAuth();
+        if (existingAuth && (existingAuth.email !== cleanEmail || existingAuth.password !== password)) {
+          throw new Error("Invalid credentials");
+        }
+        if (!existingAuth) {
+          await setLocalAuth({ email: cleanEmail, password });
+          await setLocalUser({
+            id: `local-${Date.now()}`,
+            email: cleanEmail,
+            firstName: "",
+            lastName: "",
+            hasOnboarded: false,
+          });
+        }
+        await SecureStore.setItemAsync("accessToken", "local");
       } else {
-        router.replace('/onboarding');
+        const res = await login({ variables: { email: cleanEmail, password } });
+        const payload = res.data?.login;
+
+        if (!payload?.token) {
+          throw new Error("Login did not return token.");
+        }
+
+        await SecureStore.setItemAsync("accessToken", payload.token);
       }
-    }, 1000);
+
+      const primaryCreated = await SecureStore.getItemAsync("primaryProfileCreated");
+      if (primaryCreated === "true") {
+        router.replace("/(tabs)");
+      } else {
+        router.replace({ pathname: "/add-dependent", params: { primary: "true" } });
+      }
+    } catch (e: any) {
+      Alert.alert("Login failed", e?.message ?? "Unknown error");
+    }
   };
 
   const handleBiometricAuth = () => {
-    Alert.alert('Biometric Authentication', 'Face ID / Touch ID would be triggered here.');
+    Alert.alert("Biometric Authentication", "Face ID / Touch ID would be triggered here.");
   };
 
+  // While checking an existing session, show a loader (prevents flash)
+  if (checkingExistingSession) {
+    return (
+      <KeyboardDismiss>
+        <SafeAreaView className="flex-1 bg-background">
+        <View className="flex-1 items-center justify-center">
+          <ActivityIndicator />
+          <Text className="text-muted-foreground mt-3">Loading…</Text>
+        </View>
+        </SafeAreaView>
+      </KeyboardDismiss>
+    );
+  }
+
+  // Otherwise show Login UI
   return (
-    <SafeAreaView className="flex-1 bg-background">
+    <KeyboardDismiss>
+      <SafeAreaView className="flex-1 bg-background">
       <View className="flex-1 px-6 justify-center">
-        {/* Header */}
         <View className="items-center mb-12">
           <View className="w-20 h-20 bg-primary/10 rounded-full items-center justify-center mb-4">
             <Lock size={40} className="text-primary" />
           </View>
           <Text className="text-3xl font-bold text-foreground mb-2">LifeVault</Text>
-          <Text className="text-muted-foreground text-center">
-            A calmer way to keep what matters
-          </Text>
+          <Text className="text-muted-foreground text-center">A calmer way to keep what matters</Text>
         </View>
 
-        {/* Theme Toggle */}
         <View className="absolute top-4 right-6">
           <ThemeToggle />
         </View>
 
-        {/* Login Form */}
         <View className="gap-5">
-          {/* Email Input */}
+          {/* Email */}
           <View>
             <Text className="text-sm font-medium text-foreground mb-2">Email</Text>
             <View className="flex-row items-center bg-input rounded-xl px-4 border border-border">
-              <Mail size={20} className="text-muted-foreground mr-3" />
+              <Mail size={20} className="text-muted-foreground" style={{ marginRight: 12 }} />
               <TextInput
                 className="flex-1 py-4 text-foreground"
                 placeholder="your@email.com"
@@ -76,11 +164,12 @@ export default function LoginScreen() {
             </View>
           </View>
 
-          {/* Password Input */}
+          {/* Password */}
           <View>
             <Text className="text-sm font-medium text-foreground mb-2">Password</Text>
             <View className="flex-row items-center bg-input rounded-xl px-4 border border-border">
-              <Lock size={20} className="text-muted-foreground mr-3" />
+              {/* spacing issue fix: explicit marginRight */}
+              <Lock size={20} className="text-muted-foreground" style={{ marginRight: 12 }} />
               <TextInput
                 className="flex-1 py-4 text-foreground"
                 placeholder="••••••••"
@@ -89,15 +178,12 @@ export default function LoginScreen() {
                 onChangeText={setPassword}
                 secureTextEntry={!showPassword}
               />
-              <Pressable onPress={() => setShowPassword(!showPassword)}>
-                <Text className="text-primary text-sm font-medium">
-                  {showPassword ? 'Hide' : 'Show'}
-                </Text>
+              <Pressable onPress={() => setShowPassword((v) => !v)} hitSlop={10}>
+                <Text className="text-primary text-sm font-medium">{showPassword ? "Hide" : "Show"}</Text>
               </Pressable>
             </View>
           </View>
 
-          {/* Login Button */}
           <Pressable
             onPress={handleLogin}
             disabled={isLoading}
@@ -111,24 +197,30 @@ export default function LoginScreen() {
             )}
           </Pressable>
 
-          {/* Biometric Auth */}
-          <Pressable
-            onPress={handleBiometricAuth}
-            className="flex-row items-center justify-center gap-2 py-4"
-          >
+          <Pressable onPress={handleBiometricAuth} className="flex-row items-center justify-center gap-2 py-4">
             <Fingerprint size={20} className="text-primary" />
             <Text className="text-primary font-medium">Sign in with Face ID / Touch ID</Text>
           </Pressable>
-        </View>
 
-        {/* Footer */}
-        <View className="mt-12 items-center">
-          <Text className="text-muted-foreground text-sm text-center">
-            Stored on your device. Protected by Face ID.
-            {'\n'}No accounts. No data selling.
-          </Text>
+          {__DEV__ && (
+            <Pressable
+              onPress={async () => {
+                const localOnly = await getLocalOnlyMode();
+                if (!localOnly) {
+                  Alert.alert("Local-only off", "Enable local-only mode to use dev seed data.");
+                  return;
+                }
+                await seedLocalData();
+                Alert.alert("Seeded", "Local demo data added. Login with demo@lifevault.app / demo1234");
+              }}
+              className="items-center py-2"
+            >
+              <Text className="text-xs text-muted-foreground">Dev Seed Data</Text>
+            </Pressable>
+          )}
         </View>
       </View>
-    </SafeAreaView>
+      </SafeAreaView>
+    </KeyboardDismiss>
   );
 }

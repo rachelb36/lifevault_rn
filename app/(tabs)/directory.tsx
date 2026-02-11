@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,15 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Search, Plus, Phone, Mail, X, Edit, Trash, User, Star, ChevronRight, MapPin } from 'lucide-react-native';
 import { cssInterop } from 'nativewind';
+import { useFocusEffect, useRouter } from 'expo-router';
+import KeyboardDismiss from '@/components/KeyboardDismiss';
+import {
+  Contact,
+  ContactCategory,
+  deleteContact as deleteContactStorage,
+  getContacts,
+  saveContacts,
+} from '@/lib/storage/contacts';
 
 // Enable className styling for icons
 cssInterop(Search, { className: { target: 'style', nativeStyleToProp: { color: true } } });
@@ -28,21 +37,22 @@ cssInterop(ChevronRight, { className: { target: 'style', nativeStyleToProp: { co
 cssInterop(MapPin, { className: { target: 'style', nativeStyleToProp: { color: true } } });
 
 // Types
-type CategoryType = 'All' | 'Vet' | 'Medical' | 'Emergency' | 'Family' | 'School' | 'Work' | 'Service';
-
-interface Contact {
-  id: string;
-  name: string;
-  photo?: string;
-  phone: string;
-  email?: string;
-  categories: CategoryType[];
-  linkedProfiles?: { name: string; role: string }[];
-  isFavorite: boolean;
-}
+type CategoryType = 'All' | ContactCategory;
 
 // Categories for filtering
-const CATEGORIES: CategoryType[] = ['All', 'Vet', 'Medical', 'Emergency', 'Family', 'School', 'Work', 'Service'];
+const CATEGORIES: CategoryType[] = [
+  'All',
+  'Medical',
+  'Service Provider',
+  'Emergency',
+  'Family',
+  'School',
+  'Work',
+  'Insurance',
+  'Legal',
+  'Other',
+];
+const DEFAULT_CONTACT_CATEGORIES: ContactCategory[] = ['Other'];
 
 // Mock Data
 const INITIAL_CONTACTS: Contact[] = [
@@ -52,8 +62,8 @@ const INITIAL_CONTACTS: Contact[] = [
     photo: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=200&auto=format&fit=crop&q=60',
     phone: '(555) 123-4567',
     email: 'dr.smith@vetclinic.com',
-    categories: ['Vet', 'Medical'],
-    linkedProfiles: [{ name: 'Buddy (Dog)', role: 'Primary Vet' }],
+    categories: ['Medical'],
+    linkedProfiles: [{ id: 'pet-buddy', name: 'Buddy (Dog)', type: 'dependent', role: 'Primary Vet' }],
     isFavorite: true,
   },
   {
@@ -63,15 +73,15 @@ const INITIAL_CONTACTS: Contact[] = [
     phone: '(555) 987-6543',
     email: 'mom@email.com',
     categories: ['Family', 'Emergency'],
-    linkedProfiles: [{ name: 'Sarah Johnson', role: 'Emergency Contact' }],
+    linkedProfiles: [{ id: 'dep-sarah', name: 'Sarah Johnson', type: 'dependent', role: 'Emergency Contact' }],
     isFavorite: true,
   },
   {
     id: '3',
     name: 'City Pet Hospital',
     phone: '(555) 456-7890',
-    categories: ['Vet', 'Emergency'],
-    linkedProfiles: [{ name: 'Whiskers (Cat)', role: 'After Hours Care' }],
+    categories: ['Medical', 'Emergency'],
+    linkedProfiles: [{ id: 'pet-whiskers', name: 'Whiskers (Cat)', type: 'dependent', role: 'After Hours Care' }],
     isFavorite: false,
   },
   {
@@ -88,20 +98,21 @@ const INITIAL_CONTACTS: Contact[] = [
     name: 'Lincoln Elementary',
     phone: '(555) 654-3210',
     categories: ['School'],
-    linkedProfiles: [{ name: 'Tommy Johnson', role: 'School Pickup' }],
+    linkedProfiles: [{ id: 'dep-tommy', name: 'Tommy Johnson', type: 'dependent', role: 'School Pickup' }],
     isFavorite: false,
   },
   {
     id: '6',
     name: 'Pet Grooming Pro',
     phone: '(555) 789-0123',
-    categories: ['Service'],
-    linkedProfiles: [{ name: 'Buddy (Dog)', role: 'Groomer' }],
+    categories: ['Service Provider'],
+    linkedProfiles: [{ id: 'pet-buddy', name: 'Buddy (Dog)', type: 'dependent', role: 'Groomer' }],
     isFavorite: false,
   },
 ];
 
 export default function DirectoryScreen() {
+  const router = useRouter();
   const [contacts, setContacts] = useState<Contact[]>(INITIAL_CONTACTS);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<CategoryType>('All');
@@ -109,12 +120,33 @@ export default function DirectoryScreen() {
   const [editingContact, setEditingContact] = useState<Contact | null>(null);
   
   // Form state
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    name: string;
+    phone: string;
+    email: string;
+    categories: ContactCategory[];
+  }>({
     name: '',
     phone: '',
     email: '',
-    categories: [] as CategoryType[],
+    categories: [],
   });
+
+  const reload = useCallback(async () => {
+    const list = await getContacts();
+    if (list.length === 0) {
+      await saveContacts(INITIAL_CONTACTS);
+      setContacts(INITIAL_CONTACTS);
+      return;
+    }
+    setContacts(list);
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      reload();
+    }, [reload])
+  );
 
   // Filter contacts
   const filteredContacts = contacts.filter(contact => {
@@ -135,11 +167,13 @@ export default function DirectoryScreen() {
       name: formData.name,
       phone: formData.phone,
       email: formData.email || undefined,
-      categories: formData.categories.length > 0 ? formData.categories : ['Other' as CategoryType],
+      categories: formData.categories.length > 0 ? formData.categories : DEFAULT_CONTACT_CATEGORIES,
       isFavorite: false,
     };
 
-    setContacts([newContact, ...contacts]);
+    const next = [newContact, ...contacts];
+    setContacts(next);
+    saveContacts(next);
     setShowAddModal(false);
     resetForm();
   };
@@ -150,17 +184,19 @@ export default function DirectoryScreen() {
       return;
     }
 
-    setContacts(contacts.map(c => 
+    const next = contacts.map(c => 
       c.id === editingContact?.id 
         ? { 
             ...c, 
             name: formData.name,
             phone: formData.phone,
             email: formData.email || undefined,
-            categories: formData.categories.length > 0 ? formData.categories : ['Other' as CategoryType],
+            categories: formData.categories.length > 0 ? formData.categories : DEFAULT_CONTACT_CATEGORIES,
           }
         : c
-    ));
+    );
+    setContacts(next);
+    saveContacts(next);
     setShowAddModal(false);
     setEditingContact(null);
     resetForm();
@@ -170,21 +206,12 @@ export default function DirectoryScreen() {
     setFormData({ name: '', phone: '', email: '', categories: [] });
   };
 
-  const openEditModal = (contact: Contact) => {
-    setEditingContact(contact);
-    setFormData({
-      name: contact.name,
-      phone: contact.phone,
-      email: contact.email || '',
-      categories: contact.categories,
-    });
-    setShowAddModal(true);
-  };
-
   const toggleFavorite = (id: string) => {
-    setContacts(contacts.map(c => 
+    const next = contacts.map(c => 
       c.id === id ? { ...c, isFavorite: !c.isFavorite } : c
-    ));
+    );
+    setContacts(next);
+    saveContacts(next);
   };
 
   const deleteContact = (id: string) => {
@@ -196,7 +223,10 @@ export default function DirectoryScreen() {
         { 
           text: 'Delete', 
           style: 'destructive',
-          onPress: () => setContacts(contacts.filter(c => c.id !== id))
+          onPress: async () => {
+            await deleteContactStorage(id);
+            setContacts(contacts.filter(c => c.id !== id));
+          }
         }
       ]
     );
@@ -204,11 +234,12 @@ export default function DirectoryScreen() {
 
   const toggleCategoryInForm = (cat: CategoryType) => {
     if (cat === 'All') return;
+    const category = cat as ContactCategory;
     setFormData(prev => ({
       ...prev,
-      categories: prev.categories.includes(cat)
-        ? prev.categories.filter(c => c !== cat)
-        : [...prev.categories, cat]
+      categories: prev.categories.includes(category)
+        ? prev.categories.filter(c => c !== category)
+        : [...prev.categories, category]
     }));
   };
 
@@ -216,6 +247,7 @@ export default function DirectoryScreen() {
     <TouchableOpacity 
       className="bg-card rounded-2xl p-4 mb-3 border border-border active:bg-muted/50"
       onLongPress={() => deleteContact(item.id)}
+      onPress={() => router.push(`/add-contact?id=${item.id}`)}
     >
       <View className="flex-row items-start">
         {/* Avatar */}
@@ -245,16 +277,20 @@ export default function DirectoryScreen() {
               <View 
                 key={index} 
                 className={`px-2 py-0.5 rounded-full ${
-                  cat === 'Emergency' ? 'bg-destructive/10' : 
-                  cat === 'Vet' || cat === 'Medical' ? 'bg-blue-500/10' : 
-                  'bg-muted'
+                  cat === 'Emergency'
+                    ? 'bg-destructive/10'
+                    : cat === 'Medical' || cat === 'Service Provider'
+                      ? 'bg-blue-500/10'
+                      : 'bg-muted'
                 }`}
               >
                 <Text 
                   className={`text-xs ${
-                    cat === 'Emergency' ? 'text-destructive' : 
-                    cat === 'Vet' || cat === 'Medical' ? 'text-blue-500' : 
-                    'text-muted-foreground'
+                    cat === 'Emergency'
+                      ? 'text-destructive'
+                      : cat === 'Medical' || cat === 'Service Provider'
+                        ? 'text-blue-500'
+                        : 'text-muted-foreground'
                   }`}
                 >
                   {cat}
@@ -287,7 +323,8 @@ export default function DirectoryScreen() {
   );
 
   return (
-    <SafeAreaView className="flex-1 bg-background">
+    <KeyboardDismiss>
+      <SafeAreaView className="flex-1 bg-background">
       {/* Header */}
       <View className="px-6 py-4">
         <Text className="text-2xl font-bold text-foreground mb-4">Directory</Text>
@@ -314,6 +351,7 @@ export default function DirectoryScreen() {
           horizontal 
           showsHorizontalScrollIndicator={false} 
           contentContainerStyle={{ gap: 8, paddingBottom: 4 }}
+          keyboardShouldPersistTaps="handled"
         >
           {CATEGORIES.map((category) => (
             <TouchableOpacity
@@ -345,6 +383,7 @@ export default function DirectoryScreen() {
         renderItem={ContactItem}
         keyExtractor={(item) => item.id}
         contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 128 }}
+        keyboardShouldPersistTaps="handled"
         ListEmptyComponent={
           <View className="items-center justify-center py-12">
             <User size={48} className="text-muted-foreground mb-4" />
@@ -363,7 +402,7 @@ export default function DirectoryScreen() {
         onPress={() => {
           setEditingContact(null);
           resetForm();
-          setShowAddModal(true);
+          router.push("/add-contact");
         }}
         className="absolute bottom-24 right-6 w-14 h-14 bg-primary rounded-full items-center justify-center shadow-lg"
       >
@@ -392,7 +431,7 @@ export default function DirectoryScreen() {
               </TouchableOpacity>
             </View>
 
-            <ScrollView showsVerticalScrollIndicator={false}>
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
               {/* Name */}
               <View className="mb-4">
                 <Text className="text-sm font-medium text-foreground mb-2">Name *</Text>
@@ -478,6 +517,7 @@ export default function DirectoryScreen() {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+      </SafeAreaView>
+    </KeyboardDismiss>
   );
 }

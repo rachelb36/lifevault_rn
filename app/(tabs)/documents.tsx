@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, TextInput, Pressable, Modal, Image, Alert } from 'react-native';
+import { View, Text, ScrollView, TextInput, Pressable, Modal, Alert, Linking, Share } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Search, Plus, Camera, Upload, Shield, Lock, FileText, Calendar, User, X, ChevronRight, Filter } from 'lucide-react-native';
-import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
+import { Search, Plus, Camera, Upload, Shield, Lock, FileText, Calendar, User, X, ChevronRight, Share2 } from 'lucide-react-native';
+import KeyboardDismiss from '@/components/KeyboardDismiss';
 
 // Types
 type DocumentType = 'insurance' | 'id' | 'medical' | 'vaccination' | 'other';
@@ -94,7 +94,7 @@ const documentTypeColors: Record<DocumentType, string> = {
 };
 
 export default function DocumentsScreen() {
-  const [documents, setDocuments] = useState<Document[]>(mockDocuments);
+  const [documents] = useState<Document[]>(mockDocuments);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<DocumentType | 'all'>('all');
   const [showAddModal, setShowAddModal] = useState(false);
@@ -112,13 +112,36 @@ export default function DocumentsScreen() {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   };
 
-  const handleAddDocument = () => {
-    Alert.alert('Add Document', 'Choose how to add your document:', [
-      { text: 'Camera', onPress: () => console.log('Open camera') },
-      { text: 'File Picker', onPress: () => console.log('Open file picker') },
-      { text: 'Cancel', style: 'cancel' },
-    ]);
-    setShowAddModal(false);
+  const shareByEmail = async (document: Document) => {
+    const subject = encodeURIComponent(`LifeVault Document: ${document.title}`);
+    const body = encodeURIComponent(
+      `Here is the document from LifeVault:\n\n${document.title}\nLinked profile: ${document.linkedProfile}\n\nShared from LifeVault.`
+    );
+    const url = `mailto:?subject=${subject}&body=${body}`;
+    const canOpen = await Linking.canOpenURL(url);
+    if (!canOpen) {
+      Alert.alert("Email not available", "No email client is configured on this device.");
+      return;
+    }
+    await Linking.openURL(url);
+  };
+
+  const shareByText = async (document: Document) => {
+    const body = encodeURIComponent(
+      `LifeVault document: ${document.title}\nLinked profile: ${document.linkedProfile}`
+    );
+    const url = `sms:&body=${body}`;
+    const canOpen = await Linking.canOpenURL(url);
+    if (!canOpen) {
+      Alert.alert("Messaging not available", "No messaging app is available on this device.");
+      return;
+    }
+    await Linking.openURL(url);
+  };
+
+  const shareDocument = async (document: Document) => {
+    const message = `LifeVault document: ${document.title}\nLinked profile: ${document.linkedProfile}`;
+    await Share.share({ message, title: `LifeVault: ${document.title}` });
   };
 
   const DocumentCard = ({ document }: { document: Document }) => {
@@ -171,7 +194,8 @@ export default function DocumentsScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-background">
+    <KeyboardDismiss>
+      <SafeAreaView className="flex-1 bg-background">
       {/* Header */}
       <View className="px-6 py-4 border-b border-border">
         <View className="flex-row items-center justify-between mb-4">
@@ -207,6 +231,7 @@ export default function DocumentsScreen() {
         horizontal 
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={{ paddingHorizontal: 24, paddingVertical: 16, gap: 8 }}
+        keyboardShouldPersistTaps="handled"
       >
         {filterOptions.map((option) => (
           <Pressable
@@ -235,6 +260,7 @@ export default function DocumentsScreen() {
       <ScrollView 
         className="flex-1"
         contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 128 }}
+        keyboardShouldPersistTaps="handled"
       >
         {filteredDocuments.length === 0 ? (
           <View className="items-center justify-center py-16">
@@ -338,12 +364,20 @@ export default function DocumentsScreen() {
                     </View>
                     <Text className="text-foreground font-bold text-lg">{selectedDocument.title}</Text>
                   </View>
-                  {selectedDocument.isSensitive && (
-                    <View className="flex-row items-center bg-amber-500/10 px-2 py-1 rounded-full">
-                      <Lock size={12} className="text-amber-500 mr-1" />
-                      <Text className="text-amber-500 text-xs font-medium">Sensitive</Text>
-                    </View>
-                  )}
+                  <View className="flex-row items-center gap-2">
+                    {selectedDocument.isSensitive && (
+                      <View className="flex-row items-center bg-amber-500/10 px-2 py-1 rounded-full">
+                        <Lock size={12} className="text-amber-500 mr-1" />
+                        <Text className="text-amber-500 text-xs font-medium">Sensitive</Text>
+                      </View>
+                    )}
+                    <Pressable
+                      onPress={() => shareDocument(selectedDocument)}
+                      className="w-9 h-9 rounded-full bg-card border border-border items-center justify-center"
+                    >
+                      <Share2 size={16} className="text-foreground" />
+                    </Pressable>
+                  </View>
                 </View>
 
                 <View className="bg-muted/50 rounded-xl p-4 mb-4 space-y-3">
@@ -361,7 +395,7 @@ export default function DocumentsScreen() {
                   </View>
                 </View>
 
-                <View className="flex-row gap-3">
+                <View className="flex-row gap-3 mb-3">
                   <Pressable
                     onPress={() => {
                       Alert.alert('View Document', 'Opening document viewer...');
@@ -371,18 +405,35 @@ export default function DocumentsScreen() {
                   >
                     <Text className="text-primary-foreground font-semibold">View Document</Text>
                   </Pressable>
+                </View>
+
+                <View className="flex-row gap-3">
                   <Pressable
-                    onPress={() => setSelectedDocument(null)}
+                    onPress={() => selectedDocument && shareByEmail(selectedDocument)}
                     className="flex-1 bg-card border border-border rounded-xl py-3 items-center"
                   >
-                    <Text className="text-foreground font-semibold">Close</Text>
+                    <Text className="text-foreground font-semibold">Email</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => selectedDocument && shareByText(selectedDocument)}
+                    className="flex-1 bg-card border border-border rounded-xl py-3 items-center"
+                  >
+                    <Text className="text-foreground font-semibold">Text</Text>
                   </Pressable>
                 </View>
+
+                <Pressable
+                  onPress={() => setSelectedDocument(null)}
+                  className="mt-3 py-3 items-center"
+                >
+                  <Text className="text-muted-foreground font-medium">Close</Text>
+                </Pressable>
               </>
             )}
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+      </SafeAreaView>
+    </KeyboardDismiss>
   );
 }

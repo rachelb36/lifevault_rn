@@ -1,80 +1,80 @@
-import { Tabs } from 'expo-router';
-import { Home, Users, BookOpen, FileText, Settings } from 'lucide-react-native';
-import { cssInterop, useColorScheme } from 'nativewind';
-
-// Enable className styling for icons
-cssInterop(Home, { className: { target: 'style', nativeStyleToProp: { color: true } } });
-cssInterop(Users, { className: { target: 'style', nativeStyleToProp: { color: true } } });
-cssInterop(BookOpen, { className: { target: 'style', nativeStyleToProp: { color: true } } });
-cssInterop(FileText, { className: { target: 'style', nativeStyleToProp: { color: true } } });
-cssInterop(Settings, { className: { target: 'style', nativeStyleToProp: { color: true } } });
+// app/(tabs)/_layout.tsx
+import React, { useEffect } from "react";
+import { Tabs, useRouter } from "expo-router";
+import { BookOpen, FileText, Home, Settings, Users } from "lucide-react-native";
+import { useColorScheme } from "nativewind";
+import * as SecureStore from "expo-secure-store";
 
 export default function TabsLayout() {
+  const router = useRouter();
   const { colorScheme } = useColorScheme();
-  const isDark = colorScheme === 'dark';
+  const isDark = colorScheme === "dark";
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const checkAuth = async () => {
+      try {
+        const token = await SecureStore.getItemAsync("accessToken");
+        if (!token && !cancelled) {
+          router.replace("/");
+        }
+      } catch {
+        if (!cancelled) {
+          router.replace("/");
+        }
+      }
+    };
+
+    checkAuth();
+    return () => {
+      cancelled = true;
+    };
+  }, [router]);
 
   return (
     <Tabs
+      initialRouteName="index"
       screenOptions={{
         headerShown: false,
-        tabBarStyle: {
-          backgroundColor: isDark ? '#0f1a17' : '#f0fdfa',
-          borderTopColor: isDark ? '#1a2f29' : '#ccfbf1',
-          height: 60,
-          paddingBottom: 8,
-          paddingTop: 8,
-        },
-        tabBarActiveTintColor: isDark ? '#14b8a6' : '#0d9488',
-        tabBarInactiveTintColor: isDark ? '#5a7268' : '#6b7280',
-        tabBarLabelStyle: {
-          fontSize: 12,
-          fontWeight: '500',
-        },
+        tabBarShowLabel: true,
+        tabBarActiveTintColor: isDark ? "#14b8a6" : "#0d9488",
+        tabBarInactiveTintColor: isDark ? "#5a7268" : "#6b7280",
       }}
     >
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Dashboard',
-          tabBarIcon: ({ focused }) => (
-            <Home size={24} color={focused ? (isDark ? '#14b8a6' : '#0d9488') : (isDark ? '#5a7268' : '#6b7280')} />
-          ),
+          title: "Dashboard",
+          tabBarIcon: ({ color, size }) => <Home color={color} size={size} />,
         }}
       />
       <Tabs.Screen
-        name="people"
+        name="dependents"
         options={{
-          title: 'People & Pets',
-          tabBarIcon: ({ focused }) => (
-            <Users size={24} color={focused ? (isDark ? '#14b8a6' : '#0d9488') : (isDark ? '#5a7268' : '#6b7280')} />
-          ),
+          title: "Household Members",
+          tabBarIcon: ({ color, size }) => <Users color={color} size={size} />,
         }}
       />
       <Tabs.Screen
         name="directory"
         options={{
-          title: 'Directory',
-          tabBarIcon: ({ focused }) => (
-            <BookOpen size={24} color={focused ? (isDark ? '#14b8a6' : '#0d9488') : (isDark ? '#5a7268' : '#6b7280')} />
-          ),
+          title: "Directory",
+          tabBarIcon: ({ color, size }) => <BookOpen color={color} size={size} />,
         }}
       />
       <Tabs.Screen
         name="documents"
         options={{
-          title: 'Documents',
-          tabBarIcon: ({ focused }) => (
-            <FileText size={24} color={focused ? (isDark ? '#14b8a6' : '#0d9488') : (isDark ? '#5a7268' : '#6b7280')} />
-          ),
+          title: "Documents",
+          tabBarIcon: ({ color, size }) => <FileText color={color} size={size} />,
         }}
       />
       <Tabs.Screen
         name="settings"
         options={{
-          title: 'Settings',
-          tabBarIcon: ({ focused }) => (
-            <Settings size={24} color={focused ? (isDark ? '#14b8a6' : '#0d9488') : (isDark ? '#5a7268' : '#6b7280')} />
-          ),
+          title: "Settings",
+          tabBarIcon: ({ color, size }) => <Settings color={color} size={size} />,
         }}
       />
     </Tabs>
