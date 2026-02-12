@@ -1,18 +1,17 @@
 // app/pet-detail.tsx
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { View, Text, ScrollView, Pressable, Image, TouchableOpacity, ActivityIndicator, Alert } from "react-native";
+import { View, Text, ScrollView, Pressable, Image, TouchableOpacity, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
-import { ArrowLeft, Calendar, Heart, PawPrint, Share2, User as UserIcon } from "lucide-react-native";
+import { ArrowLeft, Calendar, PawPrint, Share2, Phone, FileText, Pill, Shield, AlertCircle, Check } from "lucide-react-native";
 
 import KeyboardDismiss from "@/shared/ui/KeyboardDismiss";
 import ProfileShareModal from "@/shared/ui/ProfileShareModal";
 import { ShareSection, shareProfilePdf } from "@/shared/share/profilePdf";
-
-import RecordSection, { LifeVaultRecord } from "@/ui/records/RecordSection";
-import { CATEGORY_ORDER, RecordCategory } from "@/domain/records/recordCategories";
+import { formatDateLabel } from "@/shared/utils/date";
+import { AccordionSection } from "@/features/pets/ui/components/AccordionSection";
 
 type PetProfile = {
   id: string;
@@ -20,30 +19,34 @@ type PetProfile = {
   kind: string;
   kindOtherText?: string;
   dob?: string;
+  adoptionDate?: string;
   breed?: string;
+  breedOtherText?: string;
+  breedOptionalText?: string;
   avatar?: string;
+  vetContact?: { name: string; clinicName?: string; phone: string } | null;
+  microchipId?: string;
+  vaccinations?: Array<{ id: string; name: string; date?: string | null; notes?: string }>;
+  serviceDocuments?: Array<{ id: string; type: string; expiryDate?: string | null }>;
+  medications?: Array<{
+    id: string;
+    name: string;
+    dosage?: string;
+    frequency?: string;
+    startDate?: string | null;
+    endDate?: string | null;
+    notes?: string;
+    status?: "active" | "history";
+  }>;
+  serviceProviders?: Array<{ id: string; name: string; type?: string; phone?: string; notes?: string }>;
+  insuranceProvider?: string;
+  policyNumber?: string;
+  insuranceNotes?: string;
+  emergencyInstructions?: string;
+  checklistItems?: Array<{ id: string; label: string; isChecked?: boolean }>;
 };
 
 const PETS_STORAGE_KEY = "pets_v1";
-
-/**
- * Records storage (local-only demo path)
- * We store per-pet records under: records_v1:<petId>
- */
-const petRecordsKey = (petId: string) => `records_v1:${petId}`;
-
-async function listPetRecords(petId: string): Promise<LifeVaultRecord[]> {
-  const raw = await AsyncStorage.getItem(petRecordsKey(petId));
-  const arr = raw ? JSON.parse(raw) : [];
-  const list = Array.isArray(arr) ? arr : [];
-
-  return list.map((r: any) => ({
-    id: String(r.id),
-    recordType: r.recordType,
-    title: r.title ?? null,
-    updatedAt: r.updatedAt ?? null,
-  }));
-}
 
 async function findPet(petId: string): Promise<PetProfile | null> {
   const raw = await AsyncStorage.getItem(PETS_STORAGE_KEY);
@@ -60,9 +63,7 @@ export default function PetDetailScreen() {
 
   const [pet, setPet] = useState<PetProfile | null>(null);
   const [loading, setLoading] = useState(true);
-
-  // Records
-  const [records, setRecords] = useState<LifeVaultRecord[]>([]);
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(["basics"]));
 
   const [showShareModal, setShowShareModal] = useState(false);
 
@@ -86,6 +87,15 @@ export default function PetDetailScreen() {
     return age >= 0 ? `Age ${age}` : "";
   }, [pet?.dob]);
 
+  const toggleSection = (sectionId: string) => {
+    setExpandedSections((prev) => {
+      const next = new Set(prev);
+      if (next.has(sectionId)) next.delete(sectionId);
+      else next.add(sectionId);
+      return next;
+    });
+  };
+
   const shareSections: ShareSection[] = useMemo(() => {
     return [
       {
@@ -108,12 +118,6 @@ export default function PetDetailScreen() {
     setPet(found);
   }, [petId]);
 
-  const refreshRecords = useCallback(async () => {
-    if (!petId) return;
-    const next = await listPetRecords(String(petId));
-    setRecords(next);
-  }, [petId]);
-
   // Initial load
   useEffect(() => {
     let cancelled = false;
@@ -125,9 +129,6 @@ export default function PetDetailScreen() {
         if (cancelled) return;
         setPet(found);
 
-        const next = await listPetRecords(String(petId));
-        if (cancelled) return;
-        setRecords(next);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -143,8 +144,7 @@ export default function PetDetailScreen() {
   useFocusEffect(
     useCallback(() => {
       refreshPet();
-      refreshRecords();
-    }, [refreshPet, refreshRecords])
+    }, [refreshPet])
   );
 
   if (loading) {
@@ -228,14 +228,8 @@ export default function PetDetailScreen() {
 
               <Text className="text-2xl font-bold text-foreground mb-1">{displayName}</Text>
               <Text className="text-muted-foreground mb-1">{pet.breed || "Breed not set"}</Text>
-              <Text className="text-sm text-muted-foreground mb-4">Kind: {kindLabel}</Text>
 
               <View className="flex-row gap-2">
-                <View className="flex-row items-center gap-1 bg-primary/10 px-3 py-1.5 rounded-full">
-                  <Heart size={14} className="text-primary" fill="rgb(251 113 133)" />
-                  <Text className="text-sm text-primary font-medium">Beloved Pet</Text>
-                </View>
-
                 <View className="flex-row items-center gap-1 bg-muted px-3 py-1.5 rounded-full">
                   <Calendar size={14} className="text-muted-foreground" />
                   <Text className="text-sm text-muted-foreground">{ageLabel || "Age N/A"}</Text>
@@ -244,38 +238,159 @@ export default function PetDetailScreen() {
             </View>
           </View>
 
-          {/* Records */}
+          {/* Details (mirrors add-pet categories) */}
           <View className="px-6">
             <Text className="text-lg font-semibold text-foreground mb-2">Information</Text>
-            <Text className="text-sm text-muted-foreground mb-4">
-              Add and edit pet records by category (vet records, documents, insurance, etc).
-            </Text>
 
-            {CATEGORY_ORDER.map((category) => (
-              <RecordSection
-                key={category}
-                category={category as RecordCategory}
-                records={records}
-                onAdd={(recordType) => {
-                  router.push({
-                    pathname: "/pets/[petId]/records/add",
-                    params: { petId: String(petId), recordType },
-                  } as any);
-                }}
-                onEdit={(record) => {
-                  router.push({
-                    pathname: "/pets/[petId]/records/[recordId]/edit",
-                    params: { petId: String(petId), recordId: record.id },
-                  } as any);
-                }}
-                onOpen={(record) => {
-                  router.push({
-                    pathname: "/pets/[petId]/records/[recordId]",
-                    params: { petId: String(petId), recordId: record.id },
-                  } as any);
-                }}
-              />
-            ))}
+            <AccordionSection
+              title="Basics"
+              icon={<PawPrint size={20} className="text-primary" />}
+              isExpanded={expandedSections.has("basics")}
+              onToggle={() => toggleSection("basics")}
+            >
+              <View className="gap-2">
+                <Text className="text-sm text-foreground">Pet Name: {displayName}</Text>
+                <Text className="text-sm text-foreground">Kind: {kindLabel}</Text>
+                <Text className="text-sm text-foreground">Breed: {pet.breed || "Not set"}</Text>
+                <Text className="text-sm text-foreground">Birth/Adoption: {formatDateLabel(pet.dob || pet.adoptionDate, "Not set")}</Text>
+              </View>
+            </AccordionSection>
+
+            <AccordionSection
+              title="Vet & Microchip"
+              icon={<Phone size={20} className="text-primary" />}
+              isExpanded={expandedSections.has("vet")}
+              onToggle={() => toggleSection("vet")}
+            >
+              <View className="gap-2">
+                <Text className="text-sm text-foreground">Vet Name: {pet.vetContact?.name || "Not set"}</Text>
+                <Text className="text-sm text-foreground">Clinic / Practice: {pet.vetContact?.clinicName || "Not set"}</Text>
+                <Text className="text-sm text-foreground">Vet Phone: {pet.vetContact?.phone || "Not set"}</Text>
+                <Text className="text-sm text-foreground">Microchip ID: {pet.microchipId || "Not set"}</Text>
+              </View>
+            </AccordionSection>
+
+            <AccordionSection
+              title="Records & Uploads"
+              icon={<FileText size={20} className="text-primary" />}
+              isExpanded={expandedSections.has("records")}
+              onToggle={() => toggleSection("records")}
+            >
+              <View className="gap-3">
+                <Text className="text-sm font-semibold text-foreground">Vaccinations</Text>
+                {(pet.vaccinations || []).length === 0 ? (
+                  <Text className="text-xs text-muted-foreground">No vaccination records yet.</Text>
+                ) : (
+                  (pet.vaccinations || []).map((v) => (
+                    <View key={v.id} className="bg-muted/50 border border-border rounded-xl p-3">
+                      <Text className="text-sm text-foreground font-medium">{v.name}</Text>
+                      <Text className="text-xs text-muted-foreground">Date: {formatDateLabel(v.date, "Not set")}</Text>
+                      {!!v.notes && <Text className="text-xs text-muted-foreground mt-1">{v.notes}</Text>}
+                    </View>
+                  ))
+                )}
+
+                <Text className="text-sm font-semibold text-foreground mt-2">Service Documents</Text>
+                {(pet.serviceDocuments || []).length === 0 ? (
+                  <Text className="text-xs text-muted-foreground">No service documents yet.</Text>
+                ) : (
+                  (pet.serviceDocuments || []).map((d) => (
+                    <View key={d.id} className="bg-muted/50 border border-border rounded-xl p-3">
+                      <Text className="text-sm text-foreground font-medium">{d.type}</Text>
+                      <Text className="text-xs text-muted-foreground">Expiry: {formatDateLabel(d.expiryDate, "Not set")}</Text>
+                    </View>
+                  ))
+                )}
+              </View>
+            </AccordionSection>
+
+            <AccordionSection
+              title="Medications"
+              icon={<Pill size={20} className="text-primary" />}
+              isExpanded={expandedSections.has("medications")}
+              onToggle={() => toggleSection("medications")}
+            >
+              {(pet.medications || []).length === 0 ? (
+                <Text className="text-xs text-muted-foreground">No medications yet.</Text>
+              ) : (
+                <View className="gap-2">
+                  {(pet.medications || []).map((m) => (
+                    <View key={m.id} className="bg-muted/50 border border-border rounded-xl p-3">
+                      <Text className="text-sm font-medium text-foreground">{m.name}</Text>
+                      <Text className="text-xs text-muted-foreground">
+                        {[m.dosage, m.frequency].filter(Boolean).join(" • ") || "No dosage/frequency"}
+                      </Text>
+                      <Text className="text-xs text-muted-foreground">
+                        {formatDateLabel(m.startDate, "Start not set")} - {formatDateLabel(m.endDate, "Current")}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+            </AccordionSection>
+
+            <AccordionSection
+              title="Service Providers"
+              icon={<Shield size={20} className="text-primary" />}
+              isExpanded={expandedSections.has("providers")}
+              onToggle={() => toggleSection("providers")}
+            >
+              {(pet.serviceProviders || []).length === 0 ? (
+                <Text className="text-xs text-muted-foreground">No service providers yet.</Text>
+              ) : (
+                <View className="gap-2">
+                  {(pet.serviceProviders || []).map((p) => (
+                    <View key={p.id} className="bg-muted/50 border border-border rounded-xl p-3">
+                      <Text className="text-sm font-medium text-foreground">{p.name}</Text>
+                      <Text className="text-xs text-muted-foreground">{[p.type, p.phone].filter(Boolean).join(" • ")}</Text>
+                      {!!p.notes && <Text className="text-xs text-muted-foreground mt-1">{p.notes}</Text>}
+                    </View>
+                  ))}
+                </View>
+              )}
+            </AccordionSection>
+
+            <AccordionSection
+              title="Insurance"
+              icon={<Shield size={20} className="text-primary" />}
+              isExpanded={expandedSections.has("insurance")}
+              onToggle={() => toggleSection("insurance")}
+            >
+              <View className="gap-2">
+                <Text className="text-sm text-foreground">Provider: {pet.insuranceProvider || "Not set"}</Text>
+                <Text className="text-sm text-foreground">Policy Number: {pet.policyNumber || "Not set"}</Text>
+                <Text className="text-sm text-foreground">Notes: {pet.insuranceNotes || "Not set"}</Text>
+              </View>
+            </AccordionSection>
+
+            <AccordionSection
+              title="Emergency Instructions"
+              icon={<AlertCircle size={20} className="text-primary" />}
+              isExpanded={expandedSections.has("emergency")}
+              onToggle={() => toggleSection("emergency")}
+            >
+              <Text className="text-sm text-foreground">{pet.emergencyInstructions || "No emergency instructions yet."}</Text>
+            </AccordionSection>
+
+            <AccordionSection
+              title="Checklist"
+              icon={<Check size={20} className="text-primary" />}
+              isExpanded={expandedSections.has("checklist")}
+              onToggle={() => toggleSection("checklist")}
+            >
+              {(pet.checklistItems || []).length === 0 ? (
+                <Text className="text-xs text-muted-foreground">No checklist items yet.</Text>
+              ) : (
+                <View className="gap-2">
+                  {(pet.checklistItems || []).map((item) => (
+                    <Text key={item.id} className={`text-sm ${item.isChecked ? "text-foreground" : "text-muted-foreground"}`}>
+                      {item.isChecked ? "✓ " : "○ "}
+                      {item.label}
+                    </Text>
+                  ))}
+                </View>
+              )}
+            </AccordionSection>
           </View>
         </ScrollView>
 

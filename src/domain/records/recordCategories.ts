@@ -28,3 +28,9 @@ export const CATEGORY_ORDER: RecordCategory[] = [
   RECORD_CATEGORIES.TRAVEL,
   RECORD_CATEGORIES.DOCUMENTS,
 ];
+
+export const PERSON_CATEGORY_ORDER: RecordCategory[] = CATEGORY_ORDER.filter(
+  (category) => category !== RECORD_CATEGORIES.PETS
+);
+
+export const PET_CATEGORY_ORDER: RecordCategory[] = [RECORD_CATEGORIES.PETS];

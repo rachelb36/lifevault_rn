@@ -15,7 +15,7 @@ import ProfileShareModal from "@/shared/ui/ProfileShareModal";
 import { ShareSection, shareProfilePdf } from "@/shared/share/profilePdf";
 
 import RecordSection, { LifeVaultRecord } from "@/ui/records/RecordSection";
-import { CATEGORY_ORDER, RecordCategory } from "@/domain/records/recordCategories";
+import { PERSON_CATEGORY_ORDER, RecordCategory } from "@/domain/records/recordCategories";
 
 const ME = gql`
   query Me {
@@ -287,7 +287,7 @@ export default function UserDetailScreen() {
                   Add and edit your records by category (medical, travel, documents, etc).
                 </Text>
 
-                {CATEGORY_ORDER.map((category) => (
+                {PERSON_CATEGORY_ORDER.map((category) => (
                   <RecordSection
                     key={category}
                     category={category as RecordCategory}

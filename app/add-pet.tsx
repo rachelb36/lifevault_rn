@@ -69,7 +69,7 @@ export default function AddPetScreen() {
   const [breedOptionalText, setBreedOptionalText] = useState("");
 
   // Vet & Microchip
-  const [vetContact, setVetContact] = useState<{ name: string; phone: string } | null>(null);
+  const [vetContact, setVetContact] = useState<{ name: string; clinicName?: string; phone: string } | null>(null);
   const [microchipId, setMicrochipId] = useState("");
 
   // Records
@@ -263,8 +263,12 @@ export default function AddPetScreen() {
 
   const buildInput = () => {
     const normalizedVet =
-      vetContact && (vetContact.name.trim() || vetContact.phone.trim())
-        ? { name: vetContact.name.trim(), phone: vetContact.phone.trim() }
+      vetContact && (vetContact.name.trim() || (vetContact.clinicName || "").trim() || vetContact.phone.trim())
+        ? {
+            name: vetContact.name.trim(),
+            clinicName: (vetContact.clinicName || "").trim(),
+            phone: vetContact.phone.trim(),
+          }
         : null;
 
     return {
@@ -685,7 +689,30 @@ export default function AddPetScreen() {
                   placeholder="Enter vet name"
                   placeholderTextColor="rgb(113 113 122)"
                   value={vetContact?.name || ""}
-                  onChangeText={(text) => setVetContact((prev) => ({ name: text, phone: prev?.phone || "" }))}
+                  onChangeText={(text) =>
+                    setVetContact((prev) => ({
+                      name: text,
+                      clinicName: prev?.clinicName || "",
+                      phone: prev?.phone || "",
+                    }))
+                  }
+                />
+              </View>
+
+              <View>
+                <Text className="text-sm font-medium text-foreground mb-2">Clinic / Practice Name</Text>
+                <TextInput
+                  className="bg-card border border-border rounded-xl px-4 py-3 text-foreground text-base"
+                  placeholder="Enter clinic name"
+                  placeholderTextColor="rgb(113 113 122)"
+                  value={vetContact?.clinicName || ""}
+                  onChangeText={(text) =>
+                    setVetContact((prev) => ({
+                      name: prev?.name || "",
+                      clinicName: text,
+                      phone: prev?.phone || "",
+                    }))
+                  }
                 />
               </View>
 
@@ -696,7 +723,13 @@ export default function AddPetScreen() {
                   placeholder="(555) 000-0000"
                   placeholderTextColor="rgb(113 113 122)"
                   value={vetContact?.phone || ""}
-                  onChangeText={(text) => setVetContact((prev) => ({ name: prev?.name || "", phone: text }))}
+                  onChangeText={(text) =>
+                    setVetContact((prev) => ({
+                      name: prev?.name || "",
+                      clinicName: prev?.clinicName || "",
+                      phone: text,
+                    }))
+                  }
                   keyboardType="phone-pad"
                 />
               </View>

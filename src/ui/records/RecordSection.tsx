@@ -8,6 +8,7 @@ import type { LifeVaultRecord } from "@/domain/records/types";
 import { getRecordMeta } from "@/lib/records/getRecordMeta";
 import { getTypesForCategory } from "@/lib/records/getTypesForCategory";
 import { isSingletonType } from "@/lib/records/isSingletonType";
+import { formatDateLabel } from "@/shared/utils/date";
 
 export type { LifeVaultRecord } from "@/domain/records/types";
 
@@ -101,7 +102,7 @@ export default function RecordSection({
                 </Text>
                 {record.updatedAt ? (
                   <Text className="mt-0.5 text-xs text-muted-foreground">
-                    Updated {new Date(record.updatedAt).toLocaleDateString()}
+                    Updated {formatDateLabel(record.updatedAt, "Not set")}
                   </Text>
                 ) : null}
               </TouchableOpacity>

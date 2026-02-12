@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Alert, ScrollView, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { Alert, KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { ArrowLeft, Trash2 } from "lucide-react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import * as DocumentPicker from "expo-document-picker";
 
 import { RecordType } from "@/domain/records/recordTypes";
 import { getRecordMeta } from "@/lib/records/getRecordMeta";
@@ -12,129 +13,10 @@ import {
   listRecordsForEntity,
   upsertRecordForEntity,
 } from "@/features/records/data/storage";
-
-type FieldType = "text" | "multiline";
-type FieldDef = { key: string; label: string; placeholder?: string; type?: FieldType };
-
-const FORM_DEFS: Partial<Record<RecordType, FieldDef[]>> = {
-  PASSPORT: [
-    { key: "firstName", label: "First name" },
-    { key: "middleName", label: "Middle name" },
-    { key: "lastName", label: "Last name" },
-    { key: "passportNumber", label: "Passport number" },
-    { key: "nationality", label: "Nationality" },
-    { key: "dateOfBirth", label: "Date of birth (YYYY-MM-DD)", placeholder: "YYYY-MM-DD" },
-    { key: "sex", label: "Sex" },
-    { key: "placeOfBirth", label: "Place of birth" },
-    { key: "issueDate", label: "Issue date (YYYY-MM-DD)", placeholder: "YYYY-MM-DD" },
-    { key: "expirationDate", label: "Expiration date (YYYY-MM-DD)", placeholder: "YYYY-MM-DD" },
-    { key: "issuingCountry", label: "Issuing country" },
-    { key: "issuingAuthority", label: "Issuing authority" },
-    { key: "mrzRaw", label: "MRZ raw", type: "multiline" },
-  ],
-  PASSPORT_CARD: [
-    { key: "fullName", label: "Full name" },
-    { key: "passportCardNumber", label: "Passport card number" },
-    { key: "dateOfBirth", label: "Date of birth (YYYY-MM-DD)" },
-    { key: "expirationDate", label: "Expiration date (YYYY-MM-DD)" },
-    { key: "issuingCountry", label: "Issuing country" },
-    { key: "mrzRaw", label: "MRZ raw", type: "multiline" },
-  ],
-  DRIVERS_LICENSE: [
-    { key: "fullName", label: "Full name" },
-    { key: "dlNumber", label: "License number" },
-    { key: "dateOfBirth", label: "Date of birth (YYYY-MM-DD)" },
-    { key: "issueDate", label: "Issue date (YYYY-MM-DD)" },
-    { key: "expirationDate", label: "Expiration date (YYYY-MM-DD)" },
-    { key: "issuingRegion", label: "Issuing state/region" },
-    { key: "licenseClass", label: "Class" },
-    { key: "restrictions", label: "Restrictions (comma separated)" },
-    { key: "addressLine1", label: "Address line 1" },
-    { key: "addressLine2", label: "Address line 2" },
-    { key: "city", label: "City" },
-    { key: "state", label: "State" },
-    { key: "postalCode", label: "Postal code" },
-    { key: "country", label: "Country" },
-  ],
-  BIRTH_CERTIFICATE: [
-    { key: "childFullName", label: "Child full name" },
-    { key: "dateOfBirth", label: "Date of birth (YYYY-MM-DD)" },
-    { key: "placeOfBirthCity", label: "Place of birth: city" },
-    { key: "placeOfBirthCounty", label: "Place of birth: county" },
-    { key: "placeOfBirthState", label: "Place of birth: state" },
-    { key: "placeOfBirthCountry", label: "Place of birth: country" },
-    { key: "certificateNumber", label: "Certificate number" },
-    { key: "parent1Name", label: "Parent 1 name (optional)" },
-    { key: "parent2Name", label: "Parent 2 name (optional)" },
-  ],
-  SOCIAL_SECURITY_CARD: [
-    { key: "fullName", label: "Full name" },
-    { key: "ssn", label: "SSN" },
-  ],
-  INSURANCE_POLICY: [
-    { key: "insuranceType", label: "Insurance type" },
-    { key: "insurerName", label: "Insurer name" },
-    { key: "memberName", label: "Member name" },
-    { key: "memberId", label: "Member ID" },
-    { key: "groupNumber", label: "Group number" },
-    { key: "planName", label: "Plan name" },
-    { key: "rxBin", label: "RX BIN" },
-    { key: "rxPcn", label: "RX PCN" },
-    { key: "rxGroup", label: "RX Group" },
-    { key: "customerServicePhone", label: "Customer service phone" },
-    { key: "website", label: "Website" },
-    { key: "effectiveDate", label: "Effective date (YYYY-MM-DD)" },
-    { key: "notes", label: "Notes", type: "multiline" },
-  ],
-  MEDICAL_PROFILE: [
-    { key: "bloodType", label: "Blood type" },
-    { key: "allergies", label: "Allergies (comma separated)" },
-    { key: "conditions", label: "Conditions (comma separated)" },
-    { key: "notes", label: "Notes", type: "multiline" },
-  ],
-  SCHOOL_INFO: [
-    { key: "schoolName", label: "School name" },
-    { key: "mainOfficePhone", label: "Main office phone" },
-    { key: "nurseContactId", label: "Nurse contactId (optional)" },
-    { key: "counselorContactId", label: "Counselor contactId (optional)" },
-    { key: "addressLine1", label: "Address line 1" },
-    { key: "city", label: "City" },
-    { key: "state", label: "State" },
-    { key: "postalCode", label: "Postal code" },
-    { key: "country", label: "Country" },
-    { key: "pickupList", label: "Authorized pickup (one per line: Name — Relationship — Phone)", type: "multiline" },
-    { key: "notes", label: "Notes", type: "multiline" },
-  ],
-
-  PET_PROFILE: [
-    { key: "kind", label: "Kind (Dog, Cat, etc)" },
-    { key: "breed", label: "Breed" },
-    { key: "dobOrAdoptionDate", label: "DOB or adoption date (YYYY-MM-DD)" },
-    { key: "microchipId", label: "Microchip ID" },
-    { key: "emergencyInstructions", label: "Emergency instructions", type: "multiline" },
-    { key: "notes", label: "Notes", type: "multiline" },
-  ],
-  TRAVEL_IDS: [
-    { key: "travelIds", label: "Travel IDs (one per line: Type — Number — Expiration YYYY-MM-DD)", type: "multiline" },
-    { key: "notes", label: "Notes", type: "multiline" },
-  ],
-  LOYALTY_ACCOUNTS: [
-    { key: "accounts", label: "Accounts (one per line: Program — Provider — Member #)", type: "multiline" },
-    { key: "notes", label: "Notes", type: "multiline" },
-  ],
-  OTHER_DOCUMENT: [
-    { key: "title", label: "Title" },
-    { key: "notes", label: "Notes", type: "multiline" },
-  ],
-  LEGAL_PROPERTY_DOCUMENT: [
-    { key: "documentType", label: "Document type" },
-    { key: "title", label: "Title" },
-    { key: "ownerEntityId", label: "Owner entity ID (optional)" },
-    { key: "issueDate", label: "Issue date (YYYY-MM-DD)" },
-    { key: "expirationDate", label: "Expiration date (YYYY-MM-DD, optional)" },
-    { key: "notes", label: "Notes", type: "multiline" },
-  ],
-};
+import { getFieldsForRecordType } from "@/features/records/forms/formDefs";
+import KeyboardDismiss from "@/shared/ui/KeyboardDismiss";
+import DatePickerModal from "@/shared/ui/DatePickerModal";
+import { formatDateLabel, parseDate, toIsoDateOnly } from "@/shared/utils/date";
 
 export default function EditPersonRecordScreen() {
   const router = useRouter();
@@ -147,7 +29,13 @@ export default function EditPersonRecordScreen() {
   const [record, setRecord] = useState<StoredRecord | null>(null);
   const [title, setTitle] = useState("");
   const [data, setData] = useState<any>({});
-  const [jsonDraft, setJsonDraft] = useState("");
+  const [listFieldDrafts, setListFieldDrafts] = useState<Record<string, string[]>>({});
+  const [datePickerState, setDatePickerState] = useState<{ visible: boolean; fieldKey: string | null; title: string; value: Date | null }>({
+    visible: false,
+    fieldKey: null,
+    title: "Select date",
+    value: null,
+  });
 
   const rtype = record?.recordType as RecordType | undefined;
 
@@ -160,7 +48,7 @@ export default function EditPersonRecordScreen() {
     }
   }, [rtype]);
 
-  const fields = rtype ? FORM_DEFS[rtype] : undefined;
+  const fields = rtype ? getFieldsForRecordType(rtype) : [];
 
   useEffect(() => {
     let cancelled = false;
@@ -182,7 +70,6 @@ export default function EditPersonRecordScreen() {
           setRecord(found);
           setTitle(found.title ?? "");
           setData(found.data ?? {});
-          setJsonDraft(JSON.stringify(found.data ?? {}, null, 2));
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -196,30 +83,110 @@ export default function EditPersonRecordScreen() {
   }, [pid, rid, router]);
 
   const setField = (key: string, value: string) => {
-    setData((prev: any) => {
-      const next = { ...(prev ?? {}), [key]: value };
-      setJsonDraft(JSON.stringify(next, null, 2));
-      return next;
+    setData((prev: any) => ({ ...(prev ?? {}), [key]: value }));
+  };
+
+  const isListPatternField = (label: string) => label.toLowerCase().includes("one per line:");
+  const isDateField = (key: string, label: string, placeholder?: string) => {
+    const lower = `${key} ${label} ${placeholder ?? ""}`.toLowerCase();
+    return lower.includes("yyyy-mm-dd") || lower.includes(" date") || lower.includes("dob");
+  };
+
+  const listColumnsForLabel = (label: string) => {
+    const match = label.match(/one per line:\s*([^)]+)/i);
+    const raw = match?.[1] ?? "";
+    const parts = raw
+      .split(/\s[—-]\s/g)
+      .map((p) => p.trim())
+      .filter(Boolean);
+    return parts.length > 0 ? parts : ["Item"];
+  };
+
+  const getDraftValues = (fieldKey: string, columnCount: number) => {
+    const existing = listFieldDrafts[fieldKey] ?? [];
+    if (existing.length >= columnCount) return existing;
+    return [...existing, ...Array(columnCount - existing.length).fill("")];
+  };
+
+  const setDraftValue = (fieldKey: string, index: number, value: string, columnCount: number) => {
+    const base = getDraftValues(fieldKey, columnCount);
+    const next = [...base];
+    next[index] = value;
+    setListFieldDrafts((prev) => ({ ...prev, [fieldKey]: next }));
+  };
+
+  const addStructuredLine = (fieldKey: string, columns: string[]) => {
+    const parts = getDraftValues(fieldKey, columns.length).map((v) => v.trim());
+    if (parts.every((p) => !p)) return;
+    const line = parts.join(" — ");
+    const current = String(data?.[fieldKey] ?? "");
+    const next = current ? `${current}\n${line}` : line;
+    setField(fieldKey, next);
+    setListFieldDrafts((prev) => ({ ...prev, [fieldKey]: Array(columns.length).fill("") }));
+  };
+
+  const removeStructuredLine = (fieldKey: string, lineIndex: number) => {
+    const lines = String(data?.[fieldKey] ?? "")
+      .split("\n")
+      .map((l) => l.trim())
+      .filter(Boolean);
+    lines.splice(lineIndex, 1);
+    setField(fieldKey, lines.join("\n"));
+  };
+
+  const pickDocument = async (fieldKey: string) => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        copyToCacheDirectory: true,
+        multiple: false,
+      });
+      if (result.canceled) return;
+
+      const file = result.assets?.[0];
+      if (!file?.uri) return;
+
+      setData((prev: any) => {
+        return {
+          ...(prev ?? {}),
+          [fieldKey]: {
+            uri: file.uri,
+            name: file.name ?? "document",
+            mimeType: file.mimeType ?? "application/octet-stream",
+            size: file.size ?? null,
+          },
+        };
+      });
+    } catch (e: any) {
+      Alert.alert("Upload failed", e?.message ?? "Could not select document.");
+    }
+  };
+
+  const openDatePicker = (fieldKey: string, fieldLabel: string) => {
+    setDatePickerState({
+      visible: true,
+      fieldKey,
+      title: fieldLabel,
+      value: parseDate(data?.[fieldKey] ?? null),
     });
+  };
+
+  const closeDatePicker = () => {
+    setDatePickerState((prev) => ({ ...prev, visible: false, fieldKey: null }));
+  };
+
+  const confirmDatePicker = (date: Date) => {
+    if (!datePickerState.fieldKey) return;
+    setField(datePickerState.fieldKey, toIsoDateOnly(date));
+    closeDatePicker();
   };
 
   const handleSave = async () => {
     if (!record || !pid) return;
 
-    let finalData = data;
-    if (!fields) {
-      try {
-        finalData = JSON.parse(jsonDraft || "{}");
-      } catch {
-        Alert.alert("Invalid JSON", "Please fix the JSON and try again.");
-        return;
-      }
-    }
-
     const next: StoredRecord = {
       ...record,
       title: (title || "").trim() || record.title || meta?.label || String(record.recordType),
-      data: finalData,
+      data,
       updatedAt: new Date().toISOString(),
     };
 
@@ -279,79 +246,172 @@ export default function EditPersonRecordScreen() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-background">
-      <View className="px-6">
-        <View className="flex-row items-center py-4">
-          <TouchableOpacity onPress={() => router.back()} className="w-10 h-10 items-center justify-center">
-            <ArrowLeft size={22} className="text-foreground" />
-          </TouchableOpacity>
+    <KeyboardDismiss>
+      <SafeAreaView className="flex-1 bg-background">
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          keyboardVerticalOffset={12}
+        >
+          <View className="px-6">
+            <View className="flex-row items-center py-4">
+              <TouchableOpacity onPress={() => router.back()} className="w-10 h-10 items-center justify-center">
+                <ArrowLeft size={22} className="text-foreground" />
+              </TouchableOpacity>
 
-          <View className="ml-2 flex-1">
-            <Text className="text-lg font-semibold text-foreground">Edit {meta?.label ?? "Record"}</Text>
-            <Text className="text-xs text-muted-foreground">Type: {String(record.recordType)}</Text>
-          </View>
-
-          <TouchableOpacity onPress={handleDelete} className="w-10 h-10 items-center justify-center" hitSlop={10}>
-            <Trash2 size={20} className="text-destructive" />
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      <ScrollView className="flex-1" contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 28 }}>
-        <View className="mb-4">
-          <Text className="text-sm font-medium text-foreground mb-2">Title</Text>
-          <TextInput
-            className="bg-card border border-border rounded-xl px-4 py-3 text-foreground"
-            placeholder="Optional"
-            placeholderTextColor="rgb(148 163 184)"
-            value={title}
-            onChangeText={setTitle}
-          />
-        </View>
-
-        {fields ? (
-          <View className="gap-4">
-            {fields.map((f) => (
-              <View key={f.key}>
-                <Text className="text-sm font-medium text-foreground mb-2">{f.label}</Text>
-                <TextInput
-                  className="bg-card border border-border rounded-xl px-4 py-3 text-foreground"
-                  placeholder={f.placeholder ?? ""}
-                  placeholderTextColor="rgb(148 163 184)"
-                  value={String(data?.[f.key] ?? "")}
-                  onChangeText={(t) => setField(f.key, t)}
-                  multiline={f.type === "multiline"}
-                  style={f.type === "multiline" ? { minHeight: 110, textAlignVertical: "top" as any } : undefined}
-                />
+              <View className="ml-2 flex-1">
+                <Text className="text-lg font-semibold text-foreground">Edit {meta?.label ?? "Record"}</Text>
+                <Text className="text-xs text-muted-foreground">Type: {String(record.recordType)}</Text>
               </View>
-            ))}
-          </View>
-        ) : (
-          <View>
-            <Text className="text-sm font-medium text-foreground mb-2">Data (JSON)</Text>
-            <Text className="text-xs text-muted-foreground mb-2">No custom form yet. Edit the record JSON.</Text>
-            <TextInput
-              className="bg-card border border-border rounded-xl px-4 py-3 text-foreground"
-              value={jsonDraft}
-              onChangeText={setJsonDraft}
-              multiline
-              style={{ minHeight: 220, textAlignVertical: "top" as any }}
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-          </View>
-        )}
 
-        <View className="mt-8 gap-3">
-          <TouchableOpacity onPress={handleSave} className="bg-primary rounded-xl py-4 items-center" activeOpacity={0.85}>
-            <Text className="text-primary-foreground font-semibold">Save Changes</Text>
-          </TouchableOpacity>
+              <TouchableOpacity onPress={handleDelete} className="w-10 h-10 items-center justify-center" hitSlop={10}>
+                <Trash2 size={20} className="text-destructive" />
+              </TouchableOpacity>
+            </View>
+          </View>
 
-          <TouchableOpacity onPress={() => router.back()} className="border border-border rounded-xl py-4 items-center" activeOpacity={0.85}>
-            <Text className="text-foreground font-semibold">Cancel</Text>
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
-    </SafeAreaView>
+          <ScrollView
+            className="flex-1"
+            contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 140 }}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+          >
+            <View className="mb-4">
+              <Text className="text-sm font-medium text-foreground mb-2">Title</Text>
+              <TextInput
+                className="bg-card border border-border rounded-xl px-4 py-3 text-foreground"
+                placeholder="Optional"
+                placeholderTextColor="rgb(148 163 184)"
+                value={title}
+                onChangeText={setTitle}
+              />
+            </View>
+
+            {fields.length > 0 ? (
+              <View className="gap-4">
+                {fields.map((f) => (
+                  <View key={f.key}>
+                    <Text className="text-sm font-medium text-foreground mb-2">{f.label}</Text>
+                    {f.type === "document" ? (
+                      <View>
+                        <TouchableOpacity
+                          onPress={() => pickDocument(f.key)}
+                          className="bg-card border border-border rounded-xl px-4 py-3"
+                          activeOpacity={0.85}
+                        >
+                          <Text className="text-foreground font-medium">
+                            {data?.[f.key]?.uri ? "Replace Document" : "Upload Document"}
+                          </Text>
+                          <Text className="text-xs text-muted-foreground mt-1">
+                            PDF, image, or file from device
+                          </Text>
+                        </TouchableOpacity>
+                        {data?.[f.key]?.uri ? (
+                          <View className="mt-2 rounded-lg border border-border bg-card px-3 py-2">
+                            <Text className="text-sm text-foreground">
+                              {String(data?.[f.key]?.name ?? "Selected file")}
+                            </Text>
+                            <Text className="text-xs text-muted-foreground mt-0.5">
+                              Saved to this profile record
+                            </Text>
+                            <TouchableOpacity
+                              onPress={() => setData((prev: any) => ({ ...(prev ?? {}), [f.key]: null }))}
+                              className="mt-2 self-start"
+                            >
+                              <Text className="text-xs text-destructive font-medium">Remove document</Text>
+                            </TouchableOpacity>
+                          </View>
+                        ) : null}
+                      </View>
+                    ) : (
+                      <>
+                        {f.type === "multiline" && isListPatternField(f.label) ? (
+                          <View className="gap-2">
+                            {String(data?.[f.key] ?? "")
+                              .split("\n")
+                              .map((line) => line.trim())
+                              .filter(Boolean)
+                              .map((line, idx) => (
+                                <View key={`${f.key}-line-${idx}`} className="flex-row items-center justify-between rounded-lg border border-border bg-muted/40 px-3 py-2">
+                                  <Text className="text-sm text-foreground flex-1">{line}</Text>
+                                  <TouchableOpacity onPress={() => removeStructuredLine(f.key, idx)} className="ml-3">
+                                    <Text className="text-xs text-destructive font-medium">Remove</Text>
+                                  </TouchableOpacity>
+                                </View>
+                              ))}
+
+                            <View className="gap-2">
+                              {listColumnsForLabel(f.label).map((col, colIdx) => (
+                                <TextInput
+                                  key={`${f.key}-input-${colIdx}`}
+                                  className="bg-card border border-border rounded-xl px-4 py-3 text-foreground"
+                                  placeholder={col}
+                                  placeholderTextColor="rgb(148 163 184)"
+                                  value={getDraftValues(f.key, listColumnsForLabel(f.label).length)[colIdx] ?? ""}
+                                  onChangeText={(t) => setDraftValue(f.key, colIdx, t, listColumnsForLabel(f.label).length)}
+                                />
+                              ))}
+                              <TouchableOpacity
+                                onPress={() => addStructuredLine(f.key, listColumnsForLabel(f.label))}
+                                className="self-start rounded-lg bg-primary/10 px-3 py-2"
+                                activeOpacity={0.85}
+                              >
+                                <Text className="text-xs font-semibold text-primary">Add</Text>
+                              </TouchableOpacity>
+                            </View>
+                          </View>
+                        ) : isDateField(f.key, f.label, f.placeholder) ? (
+                          <TouchableOpacity
+                            onPress={() => openDatePicker(f.key, f.label)}
+                            className="bg-card border border-border rounded-xl px-4 py-3"
+                            activeOpacity={0.85}
+                          >
+                            <Text className={data?.[f.key] ? "text-foreground" : "text-muted-foreground"}>
+                              {formatDateLabel(data?.[f.key], f.placeholder ?? "Select date")}
+                            </Text>
+                          </TouchableOpacity>
+                        ) : (
+                          <TextInput
+                            className="bg-card border border-border rounded-xl px-4 py-3 text-foreground"
+                            placeholder={f.placeholder ?? ""}
+                            placeholderTextColor="rgb(148 163 184)"
+                            value={String(data?.[f.key] ?? "")}
+                            onChangeText={(t) => setField(f.key, t)}
+                            multiline={f.type === "multiline"}
+                            style={f.type === "multiline" ? { minHeight: 110, textAlignVertical: "top" as any } : undefined}
+                          />
+                        )}
+                      </>
+                    )}
+                  </View>
+                ))}
+              </View>
+            ) : (
+              <View>
+                <Text className="text-sm text-muted-foreground">No custom fields configured for this record type.</Text>
+              </View>
+            )}
+
+            <View className="mt-8 gap-3">
+              <TouchableOpacity onPress={handleSave} className="bg-primary rounded-xl py-4 items-center" activeOpacity={0.85}>
+                <Text className="text-primary-foreground font-semibold">Save Changes</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity onPress={() => router.back()} className="border border-border rounded-xl py-4 items-center" activeOpacity={0.85}>
+                <Text className="text-foreground font-semibold">Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
+
+        <DatePickerModal
+          visible={datePickerState.visible}
+          value={datePickerState.value}
+          onConfirm={confirmDatePicker}
+          onCancel={closeDatePicker}
+          title={datePickerState.title}
+        />
+      </SafeAreaView>
+    </KeyboardDismiss>
   );
 }

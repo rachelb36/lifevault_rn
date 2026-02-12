@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Modal, View, Text, TouchableOpacity, Platform } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
 
@@ -20,6 +20,10 @@ export default function DatePickerModal({
   mode = "date",
 }: DatePickerModalProps) {
   const [tempDate, setTempDate] = useState<Date>(value ?? new Date());
+
+  useEffect(() => {
+    if (visible) setTempDate(value ?? new Date());
+  }, [visible, value]);
 
   return (
     <Modal

@@ -10,6 +10,7 @@ import {
   getRecordById,
   type StoredRecord,
 } from "@/features/records/data/storage";
+import { buildDisplayRows } from "@/features/records/forms/formDefs";
 
 export default function PersonRecordDetailScreen() {
   const router = useRouter();
@@ -41,6 +42,11 @@ export default function PersonRecordDetailScreen() {
   const label = useMemo(() => {
     if (!record) return "Record";
     return getRecordMeta(record.recordType)?.label ?? String(record.recordType);
+  }, [record]);
+
+  const displayRows = useMemo(() => {
+    if (!record) return [];
+    return buildDisplayRows(record.recordType, record.data);
   }, [record]);
 
   const handleDelete = () => {
@@ -87,9 +93,18 @@ export default function PersonRecordDetailScreen() {
 
           <View className="mt-6 rounded-xl border border-border bg-card p-4">
             <Text className="mb-2 text-sm font-medium text-foreground">Data</Text>
-            <Text className="text-xs text-muted-foreground">
-              {JSON.stringify(record.data ?? {}, null, 2)}
-            </Text>
+            {displayRows.length === 0 ? (
+              <Text className="text-xs text-muted-foreground">No details saved yet.</Text>
+            ) : (
+              <View className="gap-3">
+                {displayRows.map((row, idx) => (
+                  <View key={`${row.label}-${idx}`}>
+                    <Text className="text-xs font-medium text-muted-foreground">{row.label}</Text>
+                    <Text className="mt-0.5 text-sm text-foreground">{row.value}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
           </View>
 
           <View className="mt-8 gap-3">

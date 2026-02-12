@@ -21,7 +21,7 @@ export const RECORD_TYPE_REGISTRY: RecordTypeMeta[] = [
     category: RECORD_CATEGORIES.IDENTIFICATION,
     label: "Passport",
     iconKey: "passport",
-    cardinality: "SINGLE",
+    cardinality: "MULTI",
     sort: 10,
   },
   {
@@ -29,7 +29,7 @@ export const RECORD_TYPE_REGISTRY: RecordTypeMeta[] = [
     category: RECORD_CATEGORIES.IDENTIFICATION,
     label: "Passport Card",
     iconKey: "id-card",
-    cardinality: "SINGLE",
+    cardinality: "MULTI",
     sort: 20,
   },
   {
@@ -136,6 +136,16 @@ export const RECORD_TYPE_REGISTRY: RecordTypeMeta[] = [
     sort: 20,
   },
 
+  // EDUCATION
+  {
+    type: RECORD_TYPES.EDUCATION_RECORD,
+    category: RECORD_CATEGORIES.EDUCATION,
+    label: "Education Record",
+    iconKey: "graduation-cap",
+    cardinality: "MULTI",
+    sort: 10,
+  },
+
   // PETS
   {
     type: RECORD_TYPES.PET_PROFILE,
@@ -195,7 +205,7 @@ export const RECORD_TYPE_REGISTRY: RecordTypeMeta[] = [
   // LOYALTY
   {
     type: RECORD_TYPES.LOYALTY_ACCOUNTS,
-    category: RECORD_CATEGORIES.LOYALTY,
+    category: RECORD_CATEGORIES.TRAVEL,
     label: "Loyalty Accounts",
     iconKey: "barcode",
     cardinality: "SINGLE", // many accounts inside

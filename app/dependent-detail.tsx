@@ -14,7 +14,7 @@ import { findDependent, updateDependent } from "@/features/profiles/data/storage
 import { DependentProfile } from "@/features/profiles/domain/types";
 
 import RecordSection, { LifeVaultRecord } from "@/ui/records/RecordSection";
-import { CATEGORY_ORDER, RecordCategory } from "@/domain/records/recordCategories";
+import { PERSON_CATEGORY_ORDER, RecordCategory } from "@/domain/records/recordCategories";
 import { RecordType } from "@/domain/records/recordTypes";
 import { isSingletonType } from "@/lib/records/isSingletonType";
 
@@ -51,6 +51,25 @@ export default function DependentDetailScreen() {
     if (m < 0 || (m === 0 && today.getDate() < d.getDate())) age--;
     return age >= 0 ? `Age ${age}` : "";
   }, [person?.dob]);
+
+  const isDependent18OrUnder = useMemo(() => {
+    if (!person?.dob) return false;
+    const d = new Date(person.dob);
+    if (Number.isNaN(d.getTime())) return false;
+    const today = new Date();
+    let age = today.getFullYear() - d.getFullYear();
+    const m = today.getMonth() - d.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < d.getDate())) age--;
+    return age <= 18;
+  }, [person?.dob]);
+
+  const visibleCategoryOrder = useMemo(
+    () =>
+      PERSON_CATEGORY_ORDER.filter(
+        (category) => category !== "SCHOOL_INFO" || isDependent18OrUnder
+      ),
+    [isDependent18OrUnder]
+  );
 
   // Load dependent once (or when depId changes)
   useEffect(() => {
@@ -248,7 +267,7 @@ export default function DependentDetailScreen() {
               Add and edit records by category (medical, travel, education, documents, etc).
             </Text>
 
-            {CATEGORY_ORDER.map((category) => (
+            {visibleCategoryOrder.map((category) => (
               <RecordSection
                 key={category}
                 category={category as RecordCategory}

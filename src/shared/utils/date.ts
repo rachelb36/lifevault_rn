@@ -15,5 +15,8 @@ export const parseDate = (value?: string | Date | null): Date | null => {
 export const formatDateLabel = (value?: string | Date | null, fallback = "Select date"): string => {
   const d = parseDate(value);
   if (!d) return fallback;
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  const yyyy = d.getFullYear();
+  return `${mm}-${dd}-${yyyy}`;
 };
