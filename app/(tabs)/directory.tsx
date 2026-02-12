@@ -156,7 +156,7 @@ export default function DirectoryScreen() {
     return matchesSearch && matchesCategory;
   });
 
-  const handleAddContact = () => {
+  const handleAddContact = async () => {
     if (!formData.name.trim() || !formData.phone.trim()) {
       Alert.alert('Error', 'Name and Phone are required');
       return;
@@ -171,47 +171,59 @@ export default function DirectoryScreen() {
       isFavorite: false,
     };
 
-    const next = [newContact, ...contacts];
-    setContacts(next);
-    saveContacts(next);
-    setShowAddModal(false);
-    resetForm();
+    try {
+      const next = [newContact, ...contacts];
+      setContacts(next);
+      await saveContacts(next);
+      setShowAddModal(false);
+      resetForm();
+    } catch {
+      Alert.alert('Error', 'Unable to save contact.');
+    }
   };
 
-  const handleUpdateContact = () => {
+  const handleUpdateContact = async () => {
     if (!formData.name.trim() || !formData.phone.trim()) {
       Alert.alert('Error', 'Name and Phone are required');
       return;
     }
 
-    const next = contacts.map(c => 
-      c.id === editingContact?.id 
-        ? { 
-            ...c, 
-            name: formData.name,
-            phone: formData.phone,
-            email: formData.email || undefined,
-            categories: formData.categories.length > 0 ? formData.categories : DEFAULT_CONTACT_CATEGORIES,
-          }
-        : c
-    );
-    setContacts(next);
-    saveContacts(next);
-    setShowAddModal(false);
-    setEditingContact(null);
-    resetForm();
+    try {
+      const next = contacts.map(c => 
+        c.id === editingContact?.id 
+          ? { 
+              ...c, 
+              name: formData.name,
+              phone: formData.phone,
+              email: formData.email || undefined,
+              categories: formData.categories.length > 0 ? formData.categories : DEFAULT_CONTACT_CATEGORIES,
+            }
+          : c
+      );
+      setContacts(next);
+      await saveContacts(next);
+      setShowAddModal(false);
+      setEditingContact(null);
+      resetForm();
+    } catch {
+      Alert.alert('Error', 'Unable to update contact.');
+    }
   };
 
   const resetForm = () => {
     setFormData({ name: '', phone: '', email: '', categories: [] });
   };
 
-  const toggleFavorite = (id: string) => {
-    const next = contacts.map(c => 
-      c.id === id ? { ...c, isFavorite: !c.isFavorite } : c
-    );
-    setContacts(next);
-    saveContacts(next);
+  const toggleFavorite = async (id: string) => {
+    try {
+      const next = contacts.map(c => 
+        c.id === id ? { ...c, isFavorite: !c.isFavorite } : c
+      );
+      setContacts(next);
+      await saveContacts(next);
+    } catch {
+      Alert.alert('Error', 'Unable to update favorite.');
+    }
   };
 
   const deleteContact = (id: string) => {
@@ -224,8 +236,12 @@ export default function DirectoryScreen() {
           text: 'Delete', 
           style: 'destructive',
           onPress: async () => {
-            await deleteContactStorage(id);
-            setContacts(contacts.filter(c => c.id !== id));
+            try {
+              await deleteContactStorage(id);
+              setContacts((prev) => prev.filter(c => c.id !== id));
+            } catch {
+              Alert.alert('Error', 'Unable to delete contact.');
+            }
           }
         }
       ]

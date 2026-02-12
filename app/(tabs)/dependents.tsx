@@ -340,7 +340,7 @@ export default function DependentsScreen() {
     if (filteredAndSortedDependents.length > 0) {
       rows.push({ type: "header", id: "header-people", title: "People" });
       rows.push(
-        ...filteredAndSortedDependents.map((item) => ({
+        ...filteredAndSortedDependents.map((item): HouseholdRow => ({
           type: "person",
           id: `person-${item.id}`,
           item,
@@ -350,7 +350,7 @@ export default function DependentsScreen() {
     if (filteredAndSortedPets.length > 0) {
       rows.push({ type: "header", id: "header-pets", title: "Pets" });
       rows.push(
-        ...filteredAndSortedPets.map((item) => ({
+        ...filteredAndSortedPets.map((item): HouseholdRow => ({
           type: "pet",
           id: `pet-${item.id}`,
           item,

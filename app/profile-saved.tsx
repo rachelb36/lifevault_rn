@@ -1,3 +1,4 @@
+// app/profile-saved.tsx
 import React from "react";
 import { View, Text, TouchableOpacity } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -15,10 +16,19 @@ export default function ProfileSavedScreen() {
       router.replace("/(tabs)");
       return;
     }
+
     if (profileType === "user") {
       router.replace(`/user-detail?id=${profileId}&mode=complete`);
       return;
     }
+
+    if (profileType === "pet") {
+      // pet-detail doesn’t care about mode right now, but passing it doesn’t hurt
+      router.replace(`/pet-detail?id=${profileId}&mode=complete`);
+      return;
+    }
+
+    // default: dependent
     router.replace(`/dependent-detail?id=${profileId}&mode=complete`);
   };
 
