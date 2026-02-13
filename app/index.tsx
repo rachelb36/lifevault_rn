@@ -45,7 +45,7 @@ export default function IndexGateAndLogin() {
         if (primaryCreated === "true") {
           router.replace("/(tabs)");
         } else {
-          router.replace({ pathname: "/add-dependent", params: { primary: "true" } });
+          router.replace({ pathname: "/(vault)/people/add", params: { primary: "true" } });
         }
       } catch {
         // Bad/expired token or backend unreachable → clear and stay on login
@@ -104,7 +104,7 @@ export default function IndexGateAndLogin() {
       if (primaryCreated === "true") {
         router.replace("/(tabs)");
       } else {
-        router.replace({ pathname: "/add-dependent", params: { primary: "true" } });
+        router.replace({ pathname: "/(vault)/people/add", params: { primary: "true" } });
       }
     } catch (e: any) {
       Alert.alert("Login failed", e?.message ?? "Unknown error");

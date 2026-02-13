@@ -74,7 +74,7 @@ export default function OnboardingScreen() {
         });
       }
 
-      router.replace({ pathname: "/add-dependent", params: { primary: "true" } });
+      router.replace({ pathname: "/(vault)/people/add", params: { primary: "true" } });
     } catch {
       await Promise.allSettled([
         SecureStore.deleteItemAsync("accessToken"),
@@ -157,7 +157,7 @@ export default function OnboardingScreen() {
         <TouchableOpacity
           onPress={async () => {
             await SecureStore.setItemAsync("skipOnboarding", "true");
-            router.replace({ pathname: "/add-dependent", params: { primary: "true" } });
+            router.replace({ pathname: "/(vault)/people/add", params: { primary: "true" } });
           }}
           className="items-center mb-4"
           activeOpacity={0.8}

@@ -7,31 +7,15 @@ export type RecordTypeMeta = {
   type: RecordType;
   category: RecordCategory;
   label: string;
-  iconKey: string;        // UI decides actual icon component
+  iconKey: string;
   cardinality: RecordCardinality;
-  sort: number;           // within category
-  isPrivate?: boolean;    // helpful for PRIVATE_HEALTH_PROFILE
-  premium?: boolean;      // optional if you want paywall flags later
+  sort: number;
+  isPrivate?: boolean;
+  premium?: boolean;
 };
 
 export const RECORD_TYPE_REGISTRY: RecordTypeMeta[] = [
   // IDENTIFICATION
-  {
-    type: RECORD_TYPES.PASSPORT,
-    category: RECORD_CATEGORIES.IDENTIFICATION,
-    label: "Passport",
-    iconKey: "passport",
-    cardinality: "MULTI",
-    sort: 10,
-  },
-  {
-    type: RECORD_TYPES.PASSPORT_CARD,
-    category: RECORD_CATEGORIES.IDENTIFICATION,
-    label: "Passport Card",
-    iconKey: "id-card",
-    cardinality: "MULTI",
-    sort: 20,
-  },
   {
     type: RECORD_TYPES.DRIVERS_LICENSE,
     category: RECORD_CATEGORIES.IDENTIFICATION,
@@ -79,7 +63,7 @@ export const RECORD_TYPE_REGISTRY: RecordTypeMeta[] = [
     category: RECORD_CATEGORIES.MEDICAL,
     label: "Procedures",
     iconKey: "stethoscope",
-    cardinality: "SINGLE", // you store multiple procedures inside the one record
+    cardinality: "SINGLE",
     sort: 30,
   },
   {
@@ -87,7 +71,7 @@ export const RECORD_TYPE_REGISTRY: RecordTypeMeta[] = [
     category: RECORD_CATEGORIES.MEDICAL,
     label: "Prescriptions",
     iconKey: "pill",
-    cardinality: "SINGLE", // you store many prescriptions inside
+    cardinality: "SINGLE",
     sort: 40,
   },
   {
@@ -95,7 +79,7 @@ export const RECORD_TYPE_REGISTRY: RecordTypeMeta[] = [
     category: RECORD_CATEGORIES.MEDICAL,
     label: "Vaccinations",
     iconKey: "syringe",
-    cardinality: "SINGLE", // many doses inside
+    cardinality: "SINGLE",
     sort: 50,
   },
   {
@@ -118,7 +102,7 @@ export const RECORD_TYPE_REGISTRY: RecordTypeMeta[] = [
     isPrivate: true,
   },
 
-  // SCHOOL (IF DEPENDENT IS 18 OR UNDER)
+  // SCHOOL
   {
     type: RECORD_TYPES.SCHOOL_INFO,
     category: RECORD_CATEGORIES.SCHOOL_INFO,
@@ -132,7 +116,7 @@ export const RECORD_TYPE_REGISTRY: RecordTypeMeta[] = [
     category: RECORD_CATEGORIES.SCHOOL_INFO,
     label: "Authorized Pickup",
     iconKey: "users",
-    cardinality: "SINGLE", // list of pickup people inside
+    cardinality: "SINGLE",
     sort: 20,
   },
 
@@ -144,32 +128,6 @@ export const RECORD_TYPE_REGISTRY: RecordTypeMeta[] = [
     iconKey: "graduation-cap",
     cardinality: "MULTI",
     sort: 10,
-  },
-
-  // PETS
-  {
-    type: RECORD_TYPES.PET_PROFILE,
-    category: RECORD_CATEGORIES.PETS,
-    label: "Pet Profile",
-    iconKey: "paw",
-    cardinality: "SINGLE",
-    sort: 10,
-  },
-  {
-    type: RECORD_TYPES.PET_VET_RECORDS,
-    category: RECORD_CATEGORIES.PETS,
-    label: "Vet Records",
-    iconKey: "clipboard",
-    cardinality: "MULTI", // these are document-like records (repeatable)
-    sort: 20,
-  },
-  {
-    type: RECORD_TYPES.PET_SERVICE_DOCS,
-    category: RECORD_CATEGORIES.PETS,
-    label: "Service Docs",
-    iconKey: "file",
-    cardinality: "MULTI", // repeatable
-    sort: 30,
   },
 
   // PREFERENCES
@@ -188,28 +146,42 @@ export const RECORD_TYPE_REGISTRY: RecordTypeMeta[] = [
     category: RECORD_CATEGORIES.SIZES,
     label: "Sizes",
     iconKey: "ruler",
-    cardinality: "SINGLE", // lists inside
+    cardinality: "SINGLE",
     sort: 10,
   },
 
-  // TRAVEL
+  // TRAVEL (includes passport + passport card + travel IDs + loyalty)
+  {
+    type: RECORD_TYPES.PASSPORT,
+    category: RECORD_CATEGORIES.TRAVEL,
+    label: "Passport",
+    iconKey: "passport",
+    cardinality: "MULTI",
+    sort: 10,
+  },
+  {
+    type: RECORD_TYPES.PASSPORT_CARD,
+    category: RECORD_CATEGORIES.TRAVEL,
+    label: "Passport Card",
+    iconKey: "id-card",
+    cardinality: "MULTI",
+    sort: 20,
+  },
   {
     type: RECORD_TYPES.TRAVEL_IDS,
     category: RECORD_CATEGORIES.TRAVEL,
     label: "Travel IDs",
     iconKey: "airplane",
-    cardinality: "SINGLE", // many IDs inside (KTN, Global Entry, etc.)
-    sort: 10,
+    cardinality: "SINGLE",
+    sort: 30,
   },
-
-  // LOYALTY
   {
     type: RECORD_TYPES.LOYALTY_ACCOUNTS,
     category: RECORD_CATEGORIES.TRAVEL,
     label: "Loyalty Accounts",
     iconKey: "barcode",
-    cardinality: "SINGLE", // many accounts inside
-    sort: 10,
+    cardinality: "SINGLE",
+    sort: 40,
   },
 
   // LEGAL / PROPERTY
@@ -231,11 +203,38 @@ export const RECORD_TYPE_REGISTRY: RecordTypeMeta[] = [
     cardinality: "MULTI",
     sort: 10,
   },
+
+  // PETS
+  {
+    type: RECORD_TYPES.PET_PROFILE,
+    category: RECORD_CATEGORIES.PETS,
+    label: "Pet Profile",
+    iconKey: "paw",
+    cardinality: "SINGLE",
+    sort: 10,
+  },
+  {
+    type: RECORD_TYPES.PET_DOCUMENT,
+    category: RECORD_CATEGORIES.PETS,
+    label: "Pet Document",
+    iconKey: "file",
+    cardinality: "MULTI",
+    sort: 20,
+  },
+  {
+    type: RECORD_TYPES.PET_INSURANCE,
+    category: RECORD_CATEGORIES.PETS,
+    label: "Pet Insurance",
+    iconKey: "shield",
+    cardinality: "SINGLE",
+    sort: 30,
+  },
 ];
 
-// Fast lookups
-export const RECORD_META_BY_TYPE: Record<RecordType, RecordTypeMeta> =
-  Object.fromEntries(RECORD_TYPE_REGISTRY.map((m) => [m.type, m])) as any;
+// Fast lookups (typed, no `any`)
+export const RECORD_META_BY_TYPE = Object.fromEntries(
+  RECORD_TYPE_REGISTRY.map((m) => [m.type, m] as const)
+) as Record<RecordType, RecordTypeMeta>;
 
 export const TYPES_BY_CATEGORY: Record<RecordCategory, RecordType[]> =
   RECORD_TYPE_REGISTRY.reduce((acc, meta) => {

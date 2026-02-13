@@ -206,3 +206,16 @@ export const COUNTRY_OPTIONS = [
   "Zambia",
   "Zimbabwe",
 ];
+export const PET_DOCUMENT_TYPE_OPTIONS = [
+  "Vaccination Record",
+  "Rabies Certificate",
+  "ESA Letter",
+  "Training Certificate",
+  "Service Animal ID",
+  "Adoption Papers",
+  "Registration / License",
+  "Microchip Registration",
+  "Other",
+] as const;
+
+export type PetDocumentType = (typeof PET_DOCUMENT_TYPE_OPTIONS)[number];

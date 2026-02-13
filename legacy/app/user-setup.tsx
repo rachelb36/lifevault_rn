@@ -36,7 +36,7 @@ export default function PrimarySetupScreen() {
         <View className="gap-4">
           {/* Create New Button */}
           <TouchableOpacity
-            onPress={() => router.push('/add-user')}
+            onPress={() => router.push('/(vault)/people/add?primary=true')}
             className="bg-card border border-border rounded-2xl p-6 active:opacity-80"
           >
             <View className="flex-row items-center justify-between">

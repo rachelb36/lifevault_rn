@@ -2,7 +2,7 @@ import React from "react";
 import { Modal, View, Text, TouchableOpacity, TextInput } from "react-native";
 import { Calendar, X } from "lucide-react-native";
 import { formatDateLabel } from "@/shared/utils/date";
-import type { Dateish } from "../../../domain/types";
+import type { Dateish } from "../../../domain/pet.model";
 
 export function VaccinationModal(props: {
   visible: boolean;

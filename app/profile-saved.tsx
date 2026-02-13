@@ -18,18 +18,17 @@ export default function ProfileSavedScreen() {
     }
 
     if (profileType === "user") {
-      router.replace(`/user-detail?id=${profileId}&mode=complete`);
+      router.replace(`/(vault)/me?id=${profileId}&mode=complete`);
       return;
     }
 
     if (profileType === "pet") {
-      // pet-detail doesn’t care about mode right now, but passing it doesn’t hurt
-      router.replace(`/pet-detail?id=${profileId}&mode=complete`);
+      router.replace(`/(vault)/pets/${profileId}?mode=complete`);
       return;
     }
 
     // default: dependent
-    router.replace(`/dependent-detail?id=${profileId}&mode=complete`);
+    router.replace(`/(vault)/people/${profileId}?mode=complete`);
   };
 
   return (

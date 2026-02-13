@@ -2,6 +2,7 @@ import React, { useCallback, useMemo, useState } from "react";
 import { View, Text, FlatList, Image, RefreshControl, TouchableOpacity } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import { gql, useQuery } from "@apollo/client";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as SecureStore from "expo-secure-store";
 import { User as UserIcon, PawPrint, Plus } from "lucide-react-native";
 
@@ -59,6 +60,31 @@ const ME = gql`
 const DEPENDENTS_STORAGE_KEY = "dependents_v1";
 const PETS_STORAGE_KEY = "pets_v1";
 
+function parseList<T>(raw?: string | null): T[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as T[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+async function loadFromStorage<T>(key: string): Promise<T[]> {
+  const raw = await AsyncStorage.getItem(key);
+  const asyncList = parseList<T>(raw);
+  if (asyncList.length > 0) return asyncList;
+
+  const legacy = await SecureStore.getItemAsync(key);
+  const legacyList = parseList<T>(legacy);
+  if (legacyList.length > 0) {
+    await AsyncStorage.setItem(key, JSON.stringify(legacyList));
+    return legacyList;
+  }
+
+  return asyncList;
+}
+
 function safeDate(dob?: string) {
   if (!dob) return null;
   const d = new Date(dob);
@@ -85,14 +111,12 @@ export function HouseholdList() {
   const [refreshing, setRefreshing] = useState(false);
 
   const loadLocal = useCallback(async () => {
-    const [rawDeps, rawPets] = await Promise.all([
-      SecureStore.getItemAsync(DEPENDENTS_STORAGE_KEY),
-      SecureStore.getItemAsync(PETS_STORAGE_KEY),
+    const [deps, p] = await Promise.all([
+      loadFromStorage<DependentProfile>(DEPENDENTS_STORAGE_KEY),
+      loadFromStorage<PetProfile>(PETS_STORAGE_KEY),
     ]);
-    const deps = rawDeps ? JSON.parse(rawDeps) : [];
-    const p = rawPets ? JSON.parse(rawPets) : [];
-    setDependents(Array.isArray(deps) ? deps : []);
-    setPets(Array.isArray(p) ? p : []);
+    setDependents(deps);
+    setPets(p);
   }, []);
 
   useFocusEffect(
@@ -190,9 +214,9 @@ export function HouseholdList() {
       renderItem={({ item }) => (
         <TouchableOpacity
           onPress={() => {
-            if (item.type === "user") router.push("/user-detail?primary=true");
-            else if (item.type === "dependent") router.push(`/dependent-detail?id=${item.id}`);
-            else router.push(`/pet-detail?id=${item.id}`);
+            if (item.type === "user") router.push("/(vault)/me?primary=true");
+            else if (item.type === "dependent") router.push(`/(vault)/people/${item.id}`);
+            else router.push(`/(vault)/pets/${item.id}`);
           }}
           className="bg-card border border-border rounded-2xl px-4 py-3 flex-row items-center"
           activeOpacity={0.85}
@@ -208,7 +232,7 @@ export function HouseholdList() {
       )}
       ListFooterComponent={
         <TouchableOpacity
-          onPress={() => router.push("/add-profile")}
+          onPress={() => router.push("/(vault)/people/add")}
           className="bg-card border border-border rounded-2xl px-4 py-3 flex-row items-center"
           activeOpacity={0.85}
         >

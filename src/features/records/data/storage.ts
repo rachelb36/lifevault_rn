@@ -1,6 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { RecordType } from "@/domain/records/recordTypes";
-import { LifeVaultRecord } from "@/domain/records/types";
+import { LifeVaultRecord } from "@/domain/records/record.model";
 
 export type StoredRecord = LifeVaultRecord & {
   data: Record<string, unknown>;

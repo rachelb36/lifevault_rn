@@ -59,7 +59,7 @@ export default function DashboardScreen() {
           <Text className="text-sm font-semibold text-muted-foreground mb-3">Quick Actions</Text>
           <View className="flex-row flex-wrap justify-between gap-4">
             <TouchableOpacity
-              onPress={() => router.push('/add-profile')}
+              onPress={() => router.push('/(vault)/people/add')}
               className="w-[48%] bg-card border border-border rounded-2xl p-4 items-center"
               activeOpacity={0.85}
             >
@@ -70,7 +70,7 @@ export default function DashboardScreen() {
             </TouchableOpacity>
 
             <TouchableOpacity
-              onPress={() => router.push('/add-pet')}
+              onPress={() => router.push('/(vault)/pets/add')}
               className="w-[48%] bg-card border border-border rounded-2xl p-4 items-center"
               activeOpacity={0.85}
             >
@@ -81,7 +81,7 @@ export default function DashboardScreen() {
             </TouchableOpacity>
 
             <TouchableOpacity
-              onPress={() => router.push('/(tabs)/dependents')}
+              onPress={() => router.push('/(vault)/household')}
               className="w-[48%] bg-card border border-border rounded-2xl p-4 items-center"
               activeOpacity={0.85}
             >
@@ -92,7 +92,7 @@ export default function DashboardScreen() {
             </TouchableOpacity>
 
             <TouchableOpacity
-              onPress={() => router.push('/user-detail?primary=true')}
+              onPress={() => router.push('/(vault)/me?primary=true')}
               className="w-[48%] bg-card border border-border rounded-2xl p-4 items-center"
               activeOpacity={0.85}
             >

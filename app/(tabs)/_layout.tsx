@@ -50,14 +50,14 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="dependents"
+        name="people"
         options={{
           title: "Household Members",
           tabBarIcon: ({ color, size }) => <Users color={color} size={size} />,
         }}
       />
       <Tabs.Screen
-        name="directory"
+        name="contacts"
         options={{
           title: "Directory",
           tabBarIcon: ({ color, size }) => <BookOpen color={color} size={size} />,

@@ -1,7 +1,7 @@
 import React from "react";
 import { Modal, View, Text, TouchableOpacity, TextInput } from "react-native";
 import { X } from "lucide-react-native";
-import type { ServiceProvider } from "../../../domain/types";
+import type { ServiceProvider } from "../../../domain/pet.model";
 import { CustomSelect } from "../CustomSelect";
 
 export function ProviderModal(props: {

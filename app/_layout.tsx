@@ -13,24 +13,13 @@ export default function RootLayout() {
       <ThemeProvider>
         <SafeAreaProvider>
           <Stack screenOptions={{ headerShown: false }}>
-            {/* Entry + onboarding */}
-            <Stack.Screen name="index" />
-            <Stack.Screen name="onboarding" />
-            <Stack.Screen name="add-user" />
-            <Stack.Screen name="user-detail" />
+          {/* Entry + onboarding */}
+          <Stack.Screen name="index" />
+          <Stack.Screen name="onboarding" />
 
-            {/* Main app tabs */}
+          {/* Main app tabs */}
             <Stack.Screen name="(tabs)" />
-
-            {/* Profile creation flow */}
-            <Stack.Screen name="add-dependent" />
-            <Stack.Screen name="add-pet" />
-            <Stack.Screen name="add-contact" />
             <Stack.Screen name="profile-saved" />
-
-            {/* Detail views */}
-            <Stack.Screen name="dependent-detail" />
-            <Stack.Screen name="pet-detail" />
           </Stack>
         </SafeAreaProvider>
       </ThemeProvider>

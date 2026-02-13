@@ -2,7 +2,7 @@ import React from "react";
 import { Modal, View, Text, TouchableOpacity } from "react-native";
 import { Calendar, X } from "lucide-react-native";
 import { formatDateLabel } from "@/shared/utils/date";
-import type { Dateish, ServiceDocument } from "../../../domain/types";
+import type { Dateish, ServiceDocument } from "../../../domain/pet.model";
 import { CustomSelect } from "../CustomSelect";
 
 export function ServiceDocumentModal(props: {

@@ -1,4 +1,4 @@
-import type { ChecklistItem } from "./types";
+import type { ChecklistItem } from "./pet.model";
 
 export function buildSuggestedChecklist(kind: string): ChecklistItem[] {
   const general: ChecklistItem[] = [

@@ -1,5 +1,321 @@
-import { Redirect } from "expo-router";
+import React, { useCallback, useMemo, useState } from "react";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  FlatList,
+  Image,
+  TextInput,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Plus, Search, User, ChevronRight } from "lucide-react-native";
+import { useFocusEffect, useRouter } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as SecureStore from "expo-secure-store";
+import { ThemeToggle } from "@/shared/ui/ThemeToggle";
+import KeyboardDismiss from "@/shared/ui/KeyboardDismiss";
 
-export default function PeopleIndexRoute() {
-  return <Redirect href="/(tabs)/dependents" />;
+export type DependentProfile = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  preferredName?: string;
+  relationship: string;
+  dob?: string;
+  avatar?: string;
+  isPrimary?: boolean;
+};
+
+const DEPENDENTS_STORAGE_KEY = "dependents_v1";
+
+function parseList<T>(raw?: string | null): T[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as T[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+async function loadDependentsFromStorage(): Promise<DependentProfile[]> {
+  const raw = await AsyncStorage.getItem(DEPENDENTS_STORAGE_KEY);
+  const asyncList = parseList<DependentProfile>(raw);
+  if (asyncList.length > 0) return asyncList;
+
+  const legacy = await SecureStore.getItemAsync(DEPENDENTS_STORAGE_KEY);
+  const legacyList = parseList<DependentProfile>(legacy);
+  if (legacyList.length > 0) {
+    await AsyncStorage.setItem(DEPENDENTS_STORAGE_KEY, JSON.stringify(legacyList));
+    return legacyList;
+  }
+
+  return asyncList;
+}
+
+function normalize(s?: string) {
+  return (s ?? "").trim().toLowerCase();
+}
+
+function safeDate(dob?: string) {
+  if (!dob) return null;
+  const d = new Date(dob);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function getAgeYears(dob?: string) {
+  const d = safeDate(dob);
+  if (!d) return null;
+  const today = new Date();
+  let age = today.getFullYear() - d.getFullYear();
+  const m = today.getMonth() - d.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < d.getDate())) age--;
+  return age >= 0 && age < 130 ? age : null;
+}
+
+function isPrimary(p: DependentProfile) {
+  if (p.isPrimary) return true;
+  return normalize(p.relationship) === "self";
+}
+
+function isSpouseOrPartner(p: DependentProfile) {
+  const r = normalize(p.relationship);
+  return r.includes("spouse") || r.includes("partner") || r.includes("husband") || r.includes("wife");
+}
+
+function isChild(p: DependentProfile) {
+  const r = normalize(p.relationship);
+  return r.includes("child") || r.includes("son") || r.includes("daughter") || r.includes("dependent") || r.includes("kid");
+}
+
+function isOtherAdult(p: DependentProfile) {
+  if (isPrimary(p) || isSpouseOrPartner(p) || isChild(p)) return false;
+
+  const r = normalize(p.relationship);
+  if (
+    r.includes("mother") ||
+    r.includes("father") ||
+    r.includes("parent") ||
+    r.includes("grand") ||
+    r.includes("aunt") ||
+    r.includes("uncle") ||
+    r.includes("sibling") ||
+    r.includes("brother") ||
+    r.includes("sister") ||
+    r.includes("other adult")
+  ) {
+    return true;
+  }
+
+  return true;
+}
+
+function groupRank(p: DependentProfile) {
+  if (isPrimary(p)) return 0;
+  if (isSpouseOrPartner(p)) return 1;
+  if (isOtherAdult(p)) return 2;
+  if (isChild(p)) return 3;
+  return 2;
+}
+
+function alphaKey(p: DependentProfile) {
+  const first = normalize(p.preferredName || p.firstName);
+  const last = normalize(p.lastName);
+  return `${last}::${first}`;
+}
+
+function displayName(p: DependentProfile) {
+  return p.preferredName || `${p.firstName} ${p.lastName}`.trim();
+}
+
+export default function PeopleIndexScreen() {
+  const router = useRouter();
+
+  const [searchQuery, setSearchQuery] = useState("");
+  const [dependents, setDependents] = useState<DependentProfile[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  const reload = useCallback(async () => {
+    try {
+      setLoadError(null);
+      setLoading(true);
+      const people = await loadDependentsFromStorage();
+      setDependents(people);
+    } catch (e: any) {
+      setLoadError(e?.message ?? "Failed to load people");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      reload();
+    }, [reload])
+  );
+
+  const filteredAndSortedDependents = useMemo(() => {
+    const q = normalize(searchQuery);
+
+    const filtered = dependents.filter((p) => {
+      if (!q) return true;
+      const haystack = [p.firstName, p.lastName, p.preferredName, p.relationship]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(q);
+    });
+
+    const sorted = [...filtered].sort((a, b) => {
+      const gr = groupRank(a) - groupRank(b);
+      if (gr !== 0) return gr;
+
+      const aIsChild = isChild(a);
+      const bIsChild = isChild(b);
+
+      if (aIsChild && bIsChild) {
+        const ad = safeDate(a.dob);
+        const bd = safeDate(b.dob);
+        if (ad && bd) {
+          const diff = ad.getTime() - bd.getTime();
+          if (diff !== 0) return diff;
+        } else if (ad && !bd) {
+          return -1;
+        } else if (!ad && bd) {
+          return 1;
+        }
+        return alphaKey(a).localeCompare(alphaKey(b));
+      }
+
+      return alphaKey(a).localeCompare(alphaKey(b));
+    });
+
+    return sorted;
+  }, [dependents, searchQuery]);
+
+  const subtitle = (p: DependentProfile) => {
+    const age = getAgeYears(p.dob);
+    const parts = [isPrimary(p) ? "Self (Primary)" : p.relationship || "Loved One"];
+    if (age !== null) parts.push(`Age ${age}`);
+    return parts.join(" • ");
+  };
+
+  const Avatar = ({ item }: { item: DependentProfile }) => {
+    if (item.avatar) {
+      return <Image source={{ uri: item.avatar }} className="w-14 h-14 rounded-full bg-muted" />;
+    }
+
+    return (
+      <View className="w-14 h-14 rounded-full bg-muted items-center justify-center">
+        <User size={22} className="text-muted-foreground" />
+      </View>
+    );
+  };
+
+  const renderDependentCard = ({ item }: { item: DependentProfile }) => (
+    <TouchableOpacity
+      onPress={() => router.push(`/(vault)/people/${item.id}`)}
+      className="bg-card border border-border rounded-2xl p-4 flex-row items-center mb-3 active:opacity-70"
+    >
+      <Avatar item={item} />
+
+      <View className="flex-1 ml-4">
+        <View className="flex-row items-center gap-2 flex-wrap">
+          <Text className="text-lg font-semibold text-foreground">{displayName(item)}</Text>
+
+          {isPrimary(item) && (
+            <View className="bg-primary/10 px-2 py-0.5 rounded-full">
+              <Text className="text-xs text-primary font-semibold">Primary</Text>
+            </View>
+          )}
+        </View>
+
+        <Text className="text-sm text-muted-foreground mt-0.5">{subtitle(item)}</Text>
+      </View>
+
+      <ChevronRight size={20} className="text-muted-foreground" />
+    </TouchableOpacity>
+  );
+
+  return (
+    <KeyboardDismiss>
+      <SafeAreaView className="flex-1 bg-background">
+        <View className="px-6 py-4 flex-row items-center justify-between">
+          <Text className="text-2xl font-bold text-foreground">People</Text>
+          <View className="flex-row items-center gap-3">
+            <ThemeToggle />
+            <TouchableOpacity
+              onPress={() => router.push("/(vault)/people/add")}
+              className="bg-primary w-10 h-10 rounded-full items-center justify-center"
+              activeOpacity={0.9}
+            >
+              <Plus size={20} className="text-primary-foreground" />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <View className="px-6 mb-4">
+          <View className="flex-row items-center bg-input rounded-xl px-4 border border-border">
+            <Search size={20} className="text-muted-foreground mr-3" />
+            <TextInput
+              className="flex-1 py-3 text-foreground"
+              placeholder="Search people..."
+              placeholderTextColor="rgb(168 162 158)"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
+          </View>
+        </View>
+
+        {loading ? (
+          <View className="flex-1 items-center justify-center px-6">
+            <Text className="text-muted-foreground">Loading people…</Text>
+          </View>
+        ) : loadError ? (
+          <View className="flex-1 items-center justify-center px-6">
+            <Text className="text-foreground font-semibold mb-2">Couldn’t load people</Text>
+            <Text className="text-muted-foreground text-center mb-6">{loadError}</Text>
+            <TouchableOpacity
+              onPress={reload}
+              className="bg-primary rounded-xl py-3 px-8"
+              activeOpacity={0.9}
+            >
+              <Text className="text-primary-foreground font-semibold">Try Again</Text>
+            </TouchableOpacity>
+          </View>
+        ) : filteredAndSortedDependents.length === 0 ? (
+          <View className="flex-1 items-center justify-center px-6">
+            <View className="w-20 h-20 bg-muted rounded-full items-center justify-center mb-4">
+              <User size={40} className="text-muted-foreground" />
+            </View>
+            <Text className="text-xl font-semibold text-foreground mb-2">No people yet</Text>
+            <Text className="text-muted-foreground text-center mb-6">
+              Add family members so their records are easy to find.
+            </Text>
+
+            <TouchableOpacity
+              onPress={() => router.push("/(vault)/people/add")}
+              className="bg-primary rounded-xl py-3 px-8 flex-row items-center gap-2"
+              activeOpacity={0.9}
+            >
+              <Plus size={20} className="text-primary-foreground" />
+              <Text className="text-primary-foreground font-semibold">Add Person</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <FlatList
+            data={filteredAndSortedDependents}
+            keyExtractor={(item) => `person-${item.id}`}
+            renderItem={renderDependentCard}
+            contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 128 }}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            refreshing={loading}
+            onRefresh={reload}
+          />
+        )}
+      </SafeAreaView>
+    </KeyboardDismiss>
+  );
 }
