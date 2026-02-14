@@ -1,28 +1,43 @@
 // app/_layout.tsx
+import "react-native-gesture-handler";
+import "../global.css";
 import React from "react";
 import { Stack } from "expo-router";
-import { SafeAreaProvider } from "react-native-safe-area-context";
-import { ApolloProvider } from "@apollo/client";
-import { apolloClient } from "@/lib/apollo";
-import { ThemeProvider } from "@/shared/ui/ThemeProvider";
-import "../global.css";
+import { ApolloClient, ApolloProvider, HttpLink, InMemoryCache } from "@apollo/client";
+import { setContext } from "@apollo/client/link/context";
+import * as SecureStore from "expo-secure-store";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+
+const GRAPHQL_URL =
+  process.env.EXPO_PUBLIC_GRAPHQL_URL ?? "http://localhost:4000/graphql";
+
+const httpLink = new HttpLink({ uri: GRAPHQL_URL });
+
+const authLink = setContext(async (_, { headers }) => {
+  const token =
+    (await SecureStore.getItemAsync("token")) ||
+    (await SecureStore.getItemAsync("accessToken")) ||
+    "";
+
+  return {
+    headers: {
+      ...headers,
+      authorization: token ? `Bearer ${token}` : "",
+    },
+  };
+});
+
+const apolloClient = new ApolloClient({
+  link: authLink.concat(httpLink),
+  cache: new InMemoryCache(),
+});
 
 export default function RootLayout() {
   return (
-    <ApolloProvider client={apolloClient}>
-      <ThemeProvider>
-        <SafeAreaProvider>
-          <Stack screenOptions={{ headerShown: false }}>
-          {/* Entry + onboarding */}
-          <Stack.Screen name="index" />
-          <Stack.Screen name="onboarding" />
-
-          {/* Main app tabs */}
-            <Stack.Screen name="(tabs)" />
-            <Stack.Screen name="profile-saved" />
-          </Stack>
-        </SafeAreaProvider>
-      </ThemeProvider>
-    </ApolloProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ApolloProvider client={apolloClient}>
+        <Stack screenOptions={{ headerShown: false }} />
+      </ApolloProvider>
+    </GestureHandlerRootView>
   );
 }

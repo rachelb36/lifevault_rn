@@ -60,6 +60,8 @@ export default function AddPetScreen() {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(["basics"]));
 
   // Basics
+  type PetDateType = "dob" | "adoption";
+  const [petDateType, setPetDateType] = useState<PetDateType>("dob");
   const [petName, setPetName] = useState("");
   const [kind, setKind] = useState("");
   const [kindOtherText, setKindOtherText] = useState("");
@@ -169,11 +171,8 @@ export default function AddPetScreen() {
   const toggleSection = (sectionId: string) => {
     setExpandedSections((prev) => {
       const next = new Set(prev);
-      if (next.has(sectionId)) {
-        next.delete(sectionId);
-      } else {
-        next.add(sectionId);
-      }
+      if (next.has(sectionId)) next.delete(sectionId);
+      else next.add(sectionId);
       return next;
     });
   };
@@ -213,9 +212,20 @@ export default function AddPetScreen() {
       setPetName(found.petName || "");
       setKind(found.kind || "");
       setKindOtherText(found.kindOtherText || "");
+
+      const inferredType: PetDateType =
+        found.petDateType === "adoption" || found.petDateType === "dob"
+          ? found.petDateType
+          : found.adoptionDate && !found.dob
+            ? "adoption"
+            : "dob";
+
+      setPetDateType(inferredType);
+
       const loadedDob = found.dob ? new Date(found.dob) : null;
       const loadedAdoption = found.adoptionDate ? new Date(found.adoptionDate) : null;
-      setPetDate(loadedDob || loadedAdoption);
+      setPetDate(inferredType === "adoption" ? loadedAdoption : loadedDob);
+
       setBreed(found.breed || "");
       setBreedOtherText(found.breedOtherText || "");
       setBreedOptionalText(found.breedOptionalText || "");
@@ -247,7 +257,7 @@ export default function AddPetScreen() {
     };
   }, [isEditing, editId]);
 
-  // ✅ Fix: preserve custom checklist items when kind changes
+  // ✅ Preserve custom checklist items when kind changes
   useEffect(() => {
     setChecklistItems((prev) => mergeChecklistPreservingCustom(kind, prev));
   }, [kind]);
@@ -258,6 +268,13 @@ export default function AddPetScreen() {
     if (kind === "Other" && !kindOtherText.trim()) return "Please specify the kind.";
     if ((kind === "Dog" || kind === "Cat") && !breed) return "Please select a breed.";
     if ((kind === "Dog" || kind === "Cat") && breed === "Other" && !breedOtherText.trim()) return "Please specify the breed.";
+
+    if (!petDateType) return "Please select Date of Birth or Adoption Date.";
+
+    if (!petDate || Number.isNaN(petDate.getTime())) {
+      return petDateType === "adoption" ? "Please select an Adoption Date." : "Please select a Date of Birth.";
+    }
+
     return null;
   };
 
@@ -275,8 +292,9 @@ export default function AddPetScreen() {
       petName: petName.trim(),
       kind,
       kindOtherText: kindOtherText.trim() || "",
-      dob: petDate && !Number.isNaN(petDate.getTime()) ? toIsoDateOnly(petDate) : "",
-      adoptionDate: petDate && !Number.isNaN(petDate.getTime()) ? toIsoDateOnly(petDate) : "",
+      petDateType,
+      dob: petDateType === "dob" && petDate && !Number.isNaN(petDate.getTime()) ? toIsoDateOnly(petDate) : "",
+      adoptionDate: petDateType === "adoption" && petDate && !Number.isNaN(petDate.getTime()) ? toIsoDateOnly(petDate) : "",
       breed: breed || "",
       breedOtherText: breedOtherText.trim() || "",
       breedOptionalText: breedOptionalText.trim() || "",
@@ -334,14 +352,15 @@ export default function AddPetScreen() {
       if (!localOnly) {
         const petDateTime = petDate && !Number.isNaN(petDate.getTime()) ? petDate.toISOString() : null;
         const vaultId = await getOrCreateVaultId();
+
         const entityRes = await createEntity({
           variables: {
             input: {
               vaultId,
               entityType: "PET",
               displayName: input.petName,
-              dateOfBirth: petDateTime,
-              adoptionDate: petDateTime,
+              dateOfBirth: petDateType === "dob" ? petDateTime : null,
+              adoptionDate: petDateType === "adoption" ? petDateTime : null,
             },
           },
         });
@@ -356,13 +375,14 @@ export default function AddPetScreen() {
                 entityId,
                 recordType: "PET_PROFILE",
                 payload: {
+                  petDateType: input.petDateType,
+                  dob: input.dob || "",
+                  adoptionDate: input.adoptionDate || "",
                   kind: input.kind,
                   kindOtherText: input.kindOtherText,
                   breed: input.breed,
                   breedOtherText: input.breedOtherText,
                   details: input.breedOptionalText,
-                  dob: input.dob || "",
-                  adoptionDate: input.adoptionDate || "",
                   microchipId: input.microchipId || "",
                   emergencyInstructions: input.emergencyInstructions || "",
                   insuranceProvider: input.insuranceProvider || "",
@@ -636,16 +656,44 @@ export default function AddPetScreen() {
                 />
               )}
 
-              <TouchableOpacity
-                onPress={() => openDatePicker("Birthdate / Adoption date (optional)", petDate, (d) => setPetDate(d))}
-                className="bg-card border border-border rounded-xl px-4 py-3 flex-row items-center justify-between"
-                activeOpacity={0.85}
-              >
-                <Text className={petDate ? "text-foreground" : "text-muted-foreground"}>
-                  {formatDateLabel(petDate, "Birthdate / Adoption date (optional)")}
-                </Text>
-                <Calendar size={18} className="text-muted-foreground" />
-              </TouchableOpacity>
+              <View className="gap-2">
+                <Text className="text-sm font-medium text-foreground">Date *</Text>
+
+                <View className="flex-row gap-2">
+                  <TouchableOpacity
+                    onPress={() => setPetDateType("dob")}
+                    className={`px-3 py-1.5 rounded-full border ${petDateType === "dob" ? "bg-primary border-primary" : "bg-card border-border"}`}
+                    activeOpacity={0.9}
+                  >
+                    <Text className={`text-xs ${petDateType === "dob" ? "text-primary-foreground" : "text-foreground"}`}>Date of Birth</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    onPress={() => setPetDateType("adoption")}
+                    className={`px-3 py-1.5 rounded-full border ${petDateType === "adoption" ? "bg-primary border-primary" : "bg-card border-border"}`}
+                    activeOpacity={0.9}
+                  >
+                    <Text className={`text-xs ${petDateType === "adoption" ? "text-primary-foreground" : "text-foreground"}`}>Adoption Date</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <TouchableOpacity
+                  onPress={() =>
+                    openDatePicker(
+                      petDateType === "adoption" ? "Adoption Date" : "Date of Birth",
+                      petDate,
+                      (d) => setPetDate(d)
+                    )
+                  }
+                  className="bg-card border border-border rounded-xl px-4 py-3 flex-row items-center justify-between"
+                  activeOpacity={0.85}
+                >
+                  <Text className={petDate ? "text-foreground" : "text-muted-foreground"}>
+                    {formatDateLabel(petDate, petDateType === "adoption" ? "Select adoption date" : "Select date of birth")}
+                  </Text>
+                  <Calendar size={18} className="text-muted-foreground" />
+                </TouchableOpacity>
+              </View>
 
               {showBreedOtherText && (
                 <View>

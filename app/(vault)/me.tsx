@@ -387,7 +387,7 @@ export default function UserDetailScreen() {
           <Text className="text-3xl font-bold text-foreground text-center mb-3">Create your profile</Text>
 
           <Text className="text-muted-foreground text-center text-base leading-relaxed max-w-xs">
-            This is your account profile (you). You can add loved ones and pets separately later.
+           This is your account profile (you). You can add family members and pets later.
           </Text>
         </View>
 

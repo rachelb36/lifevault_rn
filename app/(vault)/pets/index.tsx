@@ -1,12 +1,5 @@
 import React, { useCallback, useMemo, useState } from "react";
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  FlatList,
-  Image,
-  TextInput,
-} from "react-native";
+import { View, Text, TouchableOpacity, FlatList, Image, TextInput } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Plus, Search, PawPrint, ChevronRight } from "lucide-react-native";
 import { useFocusEffect, useRouter } from "expo-router";
@@ -14,6 +7,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as SecureStore from "expo-secure-store";
 import { ThemeToggle } from "@/shared/ui/ThemeToggle";
 import KeyboardDismiss from "@/shared/ui/KeyboardDismiss";
+
+type PetDateType = "dob" | "adoption";
 
 type PetProfile = {
   id: string;
@@ -23,6 +18,11 @@ type PetProfile = {
   breed?: string;
   breedOtherText?: string;
   avatar?: string;
+
+  // local storage truth (used for card display)
+  petDateType?: PetDateType;
+  dob?: string;          // ISO date only (YYYY-MM-DD)
+  adoptionDate?: string; // ISO date only (YYYY-MM-DD)
 };
 
 const PETS_STORAGE_KEY = "pets_v1";
@@ -56,6 +56,21 @@ function normalize(s?: string) {
   return (s ?? "").trim().toLowerCase();
 }
 
+function formatAppleIsoDate(iso?: string) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  try {
+    return new Intl.DateTimeFormat("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    }).format(d);
+  } catch {
+    return d.toDateString();
+  }
+}
+
 function petDisplayName(p: PetProfile) {
   return p.petName || "Pet";
 }
@@ -65,6 +80,23 @@ function petSubtitle(p: PetProfile) {
   const breed = p.breed === "Other" ? p.breedOtherText : p.breed;
   const parts = [kind, breed].filter(Boolean) as string[];
   return parts.length > 0 ? parts.join(" • ") : "Pet";
+}
+
+function petDateLine(p: PetProfile) {
+  const inferredType: PetDateType =
+    p.petDateType === "adoption" || p.petDateType === "dob"
+      ? p.petDateType
+      : p.adoptionDate && !p.dob
+      ? "adoption"
+      : "dob";
+
+  const iso = inferredType === "adoption" ? p.adoptionDate : p.dob;
+  const pretty = formatAppleIsoDate(iso);
+
+  if (!pretty) return "";
+
+  const label = inferredType === "adoption" ? "Adoption Date" : "Date of Birth";
+  return `${label}: ${pretty}`;
 }
 
 export default function PetsIndexScreen() {
@@ -98,37 +130,57 @@ export default function PetsIndexScreen() {
     const q = normalize(searchQuery);
     const filtered = pets.filter((p) => {
       if (!q) return true;
-      const haystack = [p.petName, p.kind, p.kindOtherText, p.breed, p.breedOtherText]
+      const haystack = [
+        p.petName,
+        p.kind,
+        p.kindOtherText,
+        p.breed,
+        p.breedOtherText,
+        p.petDateType,
+        p.dob,
+        p.adoptionDate,
+      ]
         .filter(Boolean)
         .join(" ")
         .toLowerCase();
+
       return haystack.includes(q);
     });
 
     return [...filtered].sort((a, b) => petDisplayName(a).localeCompare(petDisplayName(b)));
   }, [pets, searchQuery]);
 
-  const renderPetCard = ({ item }: { item: PetProfile }) => (
-    <TouchableOpacity
-      onPress={() => router.push(`/(vault)/pets/${item.id}`)}
-      className="bg-card border border-border rounded-2xl p-4 flex-row items-center mb-3 active:opacity-70"
-    >
-      {item.avatar ? (
-        <Image source={{ uri: item.avatar }} className="w-14 h-14 rounded-full bg-muted" />
-      ) : (
-        <View className="w-14 h-14 rounded-full bg-muted items-center justify-center">
-          <PawPrint size={22} className="text-muted-foreground" />
+  const renderPetCard = ({ item }: { item: PetProfile }) => {
+    const dateLine = petDateLine(item);
+
+    return (
+      <TouchableOpacity
+        onPress={() => router.push(`/(vault)/pets/${item.id}`)}
+        className="bg-card border border-border rounded-2xl p-4 flex-row items-center mb-3 active:opacity-70"
+      >
+        {item.avatar ? (
+          <Image source={{ uri: item.avatar }} className="w-14 h-14 rounded-full bg-muted" />
+        ) : (
+          <View className="w-14 h-14 rounded-full bg-muted items-center justify-center">
+            <PawPrint size={22} className="text-muted-foreground" />
+          </View>
+        )}
+
+        <View className="flex-1 ml-4">
+          <Text className="text-lg font-semibold text-foreground">{petDisplayName(item)}</Text>
+          <Text className="text-sm text-muted-foreground mt-0.5">{petSubtitle(item)}</Text>
+
+          {!!dateLine && (
+            <Text className="text-xs text-muted-foreground mt-1">
+              {dateLine}
+            </Text>
+          )}
         </View>
-      )}
 
-      <View className="flex-1 ml-4">
-        <Text className="text-lg font-semibold text-foreground">{petDisplayName(item)}</Text>
-        <Text className="text-sm text-muted-foreground mt-0.5">{petSubtitle(item)}</Text>
-      </View>
-
-      <ChevronRight size={20} className="text-muted-foreground" />
-    </TouchableOpacity>
-  );
+        <ChevronRight size={20} className="text-muted-foreground" />
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <KeyboardDismiss>
@@ -168,11 +220,7 @@ export default function PetsIndexScreen() {
           <View className="flex-1 items-center justify-center px-6">
             <Text className="text-foreground font-semibold mb-2">Couldn’t load pets</Text>
             <Text className="text-muted-foreground text-center mb-6">{loadError}</Text>
-            <TouchableOpacity
-              onPress={reload}
-              className="bg-primary rounded-xl py-3 px-8"
-              activeOpacity={0.9}
-            >
+            <TouchableOpacity onPress={reload} className="bg-primary rounded-xl py-3 px-8" activeOpacity={0.9}>
               <Text className="text-primary-foreground font-semibold">Try Again</Text>
             </TouchableOpacity>
           </View>
@@ -182,9 +230,7 @@ export default function PetsIndexScreen() {
               <PawPrint size={40} className="text-muted-foreground" />
             </View>
             <Text className="text-xl font-semibold text-foreground mb-2">No pets yet</Text>
-            <Text className="text-muted-foreground text-center mb-6">
-              Add pets to keep their records in one place.
-            </Text>
+            <Text className="text-muted-foreground text-center mb-6">Add pets to keep their records in one place.</Text>
 
             <TouchableOpacity
               onPress={() => router.push("/(vault)/pets/add")}

@@ -1,261 +1,230 @@
-import React, { useCallback, useMemo, useState } from "react";
-import { View, Text, FlatList, Image, RefreshControl, TouchableOpacity } from "react-native";
-import { useFocusEffect, useRouter } from "expo-router";
-import { gql, useQuery } from "@apollo/client";
+// src/shared/ui/HouseholdList.tsx
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, Pressable, Text, View } from "react-native";
+import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as SecureStore from "expo-secure-store";
-import { User as UserIcon, PawPrint, Plus } from "lucide-react-native";
+import { User as UserIcon, PawPrint, ChevronRight } from "lucide-react-native";
 
-type DependentProfile = {
+import SwipeToDeleteRow from "@/shared/ui/SwipeToDeleteRow";
+import { deletePersonLocal, deletePetLocal, PEOPLE_KEY, PETS_KEY } from "@/shared/utils/deleteLocalProfiles";
+
+type PersonProfile = {
   id: string;
   firstName: string;
   lastName: string;
   preferredName?: string;
-  relationship: string;
-  dob?: string;
-  avatar?: string;
+  relationship?: string;
   isPrimary?: boolean;
+  avatar?: string;
 };
 
 type PetProfile = {
   id: string;
   petName: string;
   kind?: string;
-  kindOtherText?: string;
-  dob?: string;
   avatar?: string;
 };
 
-type HouseholdItem =
-  | {
-      id: string;
-      type: "user" | "dependent";
-      name: string;
-      relationship?: string;
-      dob?: string;
-      avatar?: string;
-    }
-  | {
-      id: string;
-      type: "pet";
-      name: string;
-      kind?: string;
-      dob?: string;
-      avatar?: string;
-    };
-
-const ME = gql`
-  query Me {
-    me {
-      user {
-        id
-        email
-        firstName
-        lastName
-      }
-    }
-  }
-`;
-
-const DEPENDENTS_STORAGE_KEY = "dependents_v1";
-const PETS_STORAGE_KEY = "pets_v1";
-
-function parseList<T>(raw?: string | null): T[] {
-  if (!raw) return [];
-  try {
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? (parsed as T[]) : [];
-  } catch {
-    return [];
-  }
+function safeName(first?: string, last?: string) {
+  const full = `${first ?? ""} ${last ?? ""}`.trim();
+  return full || "Person";
 }
 
-async function loadFromStorage<T>(key: string): Promise<T[]> {
-  const raw = await AsyncStorage.getItem(key);
-  const asyncList = parseList<T>(raw);
-  if (asyncList.length > 0) return asyncList;
-
-  const legacy = await SecureStore.getItemAsync(key);
-  const legacyList = parseList<T>(legacy);
-  if (legacyList.length > 0) {
-    await AsyncStorage.setItem(key, JSON.stringify(legacyList));
-    return legacyList;
-  }
-
-  return asyncList;
+function personDisplay(p: PersonProfile) {
+  return p.preferredName?.trim() || safeName(p.firstName, p.lastName);
 }
 
-function safeDate(dob?: string) {
-  if (!dob) return null;
-  const d = new Date(dob);
-  return Number.isNaN(d.getTime()) ? null : d;
+function petDisplay(p: PetProfile) {
+  return p.petName?.trim() || "Pet";
 }
 
-function getAgeYears(dob?: string) {
-  const d = safeDate(dob);
-  if (!d) return null;
-  const today = new Date();
-  let age = today.getFullYear() - d.getFullYear();
-  const m = today.getMonth() - d.getMonth();
-  if (m < 0 || (m === 0 && today.getDate() < d.getDate())) age--;
-  return age >= 0 && age < 130 ? age : null;
+function normalizeRel(r?: string) {
+  return (r ?? "").trim().toLowerCase();
 }
 
 export function HouseholdList() {
   const router = useRouter();
-  const { data, refetch } = useQuery(ME, { fetchPolicy: "network-only" });
-  const user = data?.me?.user;
 
-  const [dependents, setDependents] = useState<DependentProfile[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [people, setPeople] = useState<PersonProfile[]>([]);
   const [pets, setPets] = useState<PetProfile[]>([]);
-  const [refreshing, setRefreshing] = useState(false);
 
-  const loadLocal = useCallback(async () => {
-    const [deps, p] = await Promise.all([
-      loadFromStorage<DependentProfile>(DEPENDENTS_STORAGE_KEY),
-      loadFromStorage<PetProfile>(PETS_STORAGE_KEY),
-    ]);
-    setDependents(deps);
-    setPets(p);
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [peopleRaw, petsRaw] = await Promise.all([
+        SecureStore.getItemAsync(PEOPLE_KEY),
+        AsyncStorage.getItem(PETS_KEY),
+      ]);
+
+      const ppl = peopleRaw ? JSON.parse(peopleRaw) : [];
+      const pet = petsRaw ? JSON.parse(petsRaw) : [];
+
+      setPeople(Array.isArray(ppl) ? ppl : []);
+      setPets(Array.isArray(pet) ? pet : []);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  useFocusEffect(
-    useCallback(() => {
-      loadLocal();
-    }, [loadLocal])
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const sortedPeople = useMemo(() => {
+    const arr = [...people];
+
+    arr.sort((a, b) => {
+      // Primary first
+      const ap = a.isPrimary ? 1 : 0;
+      const bp = b.isPrimary ? 1 : 0;
+      if (ap !== bp) return bp - ap;
+
+      // Then relationship (so "Self" doesn't float weirdly)
+      const ar = normalizeRel(a.relationship);
+      const br = normalizeRel(b.relationship);
+      if (ar !== br) return ar.localeCompare(br);
+
+      // Then name
+      return personDisplay(a).localeCompare(personDisplay(b));
+    });
+
+    return arr;
+  }, [people]);
+
+  const sortedPets = useMemo(() => {
+    const arr = [...pets];
+    arr.sort((a, b) => petDisplay(a).localeCompare(petDisplay(b)));
+    return arr;
+  }, [pets]);
+
+  const PeopleHeader = () => (
+    <View className="mt-2 mb-2">
+      <Text className="text-xs font-semibold text-muted-foreground tracking-wider px-1">
+        PEOPLE
+      </Text>
+    </View>
   );
 
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    try {
-      await Promise.allSettled([refetch(), loadLocal()]);
-    } finally {
-      setRefreshing(false);
-    }
-  }, [refetch, loadLocal]);
-
-  const items = useMemo<HouseholdItem[]>(() => {
-    const list: HouseholdItem[] = [];
-    if (user) {
-      const name = `${user.firstName || ""} ${user.lastName || ""}`.trim();
-      list.push({
-        id: `user-${user.id}`,
-        type: "user",
-        name: name || "Primary User",
-        relationship: "Primary",
-      });
-    }
-
-    dependents.forEach((d) => {
-      const name = d.preferredName || `${d.firstName} ${d.lastName}`.trim();
-      list.push({
-        id: d.id,
-        type: "dependent",
-        name,
-        relationship: d.relationship,
-        dob: d.dob,
-        avatar: d.avatar,
-      });
-    });
-
-    pets.forEach((p) => {
-      list.push({
-        id: p.id,
-        type: "pet",
-        name: p.petName,
-        kind: p.kind || p.kindOtherText,
-        dob: p.dob,
-        avatar: p.avatar,
-      });
-    });
-
-    return list;
-  }, [user, dependents, pets]);
-
-  const renderAvatar = (item: HouseholdItem) => {
-    if (item.avatar) {
-      return <Image source={{ uri: item.avatar }} className="w-12 h-12 rounded-full bg-muted" />;
-    }
-    if (item.type === "pet") {
-      return (
-        <View className="w-12 h-12 rounded-full bg-muted items-center justify-center">
-          <PawPrint size={20} className="text-muted-foreground" />
-        </View>
-      );
-    }
-    return (
-      <View className="w-12 h-12 rounded-full bg-muted items-center justify-center">
-        <UserIcon size={20} className="text-muted-foreground" />
+  const PetsHeader = () => (
+    <View className="mt-8 mb-2">
+      <View className="h-px bg-border" />
+      <View className="pt-3">
+        <Text className="text-xs font-semibold text-muted-foreground tracking-wider px-1">
+          PETS
+        </Text>
       </View>
+    </View>
+  );
+
+  const Row = ({
+    leftIcon,
+    title,
+    subtitle,
+    onPress,
+  }: {
+    leftIcon: React.ReactNode;
+    title: string;
+    subtitle?: string;
+    onPress: () => void;
+  }) => {
+    return (
+      <Pressable
+        onPress={onPress}
+        className="rounded-2xl border border-border bg-card px-4 py-4 flex-row items-center"
+      >
+        <View className="w-10 h-10 rounded-xl bg-muted items-center justify-center mr-3">
+          {leftIcon}
+        </View>
+
+        <View className="flex-1">
+          <Text className="text-foreground font-semibold">{title}</Text>
+          {subtitle ? (
+            <Text className="text-xs text-muted-foreground mt-0.5">{subtitle}</Text>
+          ) : null}
+        </View>
+
+        <ChevronRight size={18} className="text-muted-foreground" />
+      </Pressable>
     );
   };
 
-  const renderSubtitle = (item: HouseholdItem) => {
-    if (item.type === "pet") {
-      const age = getAgeYears(item.dob);
-      const parts = [item.kind || "Pet"];
-      if (age !== null) parts.push(`Age ${age}`);
-      return parts.join(" • ");
-    }
+  if (loading) {
+    return (
+      <View className="flex-1 items-center justify-center">
+        <ActivityIndicator />
+        <Text className="text-muted-foreground mt-3">Loading…</Text>
+      </View>
+    );
+  }
 
-    const age = getAgeYears(item.dob);
-    const parts = [item.relationship || "Loved One"];
-    if (age !== null) parts.push(`Age ${age}`);
-    return parts.join(" • ");
-  };
+  if (sortedPeople.length === 0 && sortedPets.length === 0) {
+    return (
+      <View className="flex-1 items-center justify-center">
+        <Text className="text-foreground font-semibold">No household members yet</Text>
+        <Text className="text-muted-foreground mt-2 text-center">
+          Add a person or pet from your Dashboard.
+        </Text>
+      </View>
+    );
+  }
 
   return (
-    <FlatList
-      data={items}
-      keyExtractor={(item) => `${item.type}-${item.id}`}
-      contentContainerStyle={{ paddingHorizontal: 0, paddingBottom: 8, gap: 8 }}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-      ListHeaderComponent={null}
-      renderItem={({ item }) => (
-        <TouchableOpacity
-          onPress={() => {
-            if (item.type === "user") router.push("/(vault)/me?primary=true");
-            else if (item.type === "dependent") router.push(`/(vault)/people/${item.id}`);
-            else router.push(`/(vault)/pets/${item.id}`);
-          }}
-          className="bg-card border border-border rounded-2xl px-4 py-3 flex-row items-center"
-          activeOpacity={0.85}
-        >
-          {renderAvatar(item)}
-          <View className="ml-4 flex-1">
-            <Text className="text-base font-semibold text-foreground">{item.name}</Text>
-            <Text className="text-xs text-muted-foreground mt-0.5">
-              {renderSubtitle(item)}
-            </Text>
-          </View>
-        </TouchableOpacity>
-      )}
-      ListFooterComponent={
-        <TouchableOpacity
-          onPress={() => router.push("/(vault)/people/add")}
-          className="bg-card border border-border rounded-2xl px-4 py-3 flex-row items-center"
-          activeOpacity={0.85}
-        >
-          <View className="w-12 h-12 rounded-full bg-primary/10 items-center justify-center">
-            <Plus size={18} className="text-primary" />
-          </View>
-          <View className="ml-4 flex-1">
-            <Text className="text-base font-semibold text-foreground">Add Profile</Text>
-            <Text className="text-xs text-muted-foreground mt-0.5">
-              Add a loved one or a pet
-            </Text>
-          </View>
-        </TouchableOpacity>
-      }
-      ListEmptyComponent={
-        <View className="items-center justify-center py-16">
-          <UserIcon size={48} className="text-muted-foreground mb-3" />
-          <Text className="text-foreground font-semibold mb-1">No Household Yet</Text>
-          <Text className="text-muted-foreground text-center">
-            Add loved ones or pets to populate your household list.
-          </Text>
-        </View>
-      }
-    />
+    <View className="flex-1">
+      <PeopleHeader />
+
+      <View className="gap-3">
+        {sortedPeople.map((p) => {
+          const title = personDisplay(p);
+          const subtitle = p.isPrimary ? "Primary" : (p.relationship?.trim() || "Person");
+
+          return (
+            <SwipeToDeleteRow
+              key={`person-${p.id}`}
+              titleForConfirm={title}
+              onDelete={async () => {
+                await deletePersonLocal(String(p.id));
+                await load();
+              }}
+            >
+              <Row
+                leftIcon={<UserIcon size={18} className="text-muted-foreground" />}
+                title={title}
+                subtitle={subtitle}
+                onPress={() => router.push(`/(vault)/people/${p.id}` as any)}
+              />
+            </SwipeToDeleteRow>
+          );
+        })}
+      </View>
+
+      {sortedPets.length > 0 ? <PetsHeader /> : null}
+
+      <View className="gap-3">
+        {sortedPets.map((p) => {
+          const title = petDisplay(p);
+          const subtitle = (p.kind ?? "").trim() ? (p.kind as string) : "Pet";
+
+          return (
+            <SwipeToDeleteRow
+              key={`pet-${p.id}`}
+              titleForConfirm={title}
+              onDelete={async () => {
+                await deletePetLocal(String(p.id));
+                await load();
+              }}
+            >
+              <Row
+                leftIcon={<PawPrint size={18} className="text-muted-foreground" />}
+                title={title}
+                subtitle={subtitle}
+                onPress={() => router.push(`/(vault)/pets/${p.id}` as any)}
+              />
+            </SwipeToDeleteRow>
+          );
+        })}
+      </View>
+    </View>
   );
 }

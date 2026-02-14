@@ -1,15 +1,41 @@
 // app/profile-saved.tsx
-import React from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import { View, Text, TouchableOpacity } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { CheckCircle } from "lucide-react-native";
+import * as SecureStore from "expo-secure-store";
 
 export default function ProfileSavedScreen() {
   const router = useRouter();
-  const { type, id } = useLocalSearchParams();
+  const { type, id, primary } = useLocalSearchParams();
+
   const profileId = Array.isArray(id) ? id[0] : id;
   const profileType = Array.isArray(type) ? type[0] : type;
+  const primaryFlag = Array.isArray(primary) ? primary[0] : primary;
+
+  // Treat primary=1 / true as “this completes onboarding”
+  const isPrimaryOnboarding = useMemo(
+    () => primaryFlag === "1" || primaryFlag === "true",
+    [primaryFlag]
+  );
+
+  // Prevent double-writing if React renders twice in dev
+  const wroteFlags = useRef(false);
+
+  useEffect(() => {
+    if (!isPrimaryOnboarding) return;
+    if (wroteFlags.current) return;
+    wroteFlags.current = true;
+
+    (async () => {
+      // These are the flags your EntryGate checks
+      await Promise.allSettled([
+        SecureStore.setItemAsync("hasOnboarded", "true"),
+        SecureStore.setItemAsync("primaryProfileCreated", "true"),
+      ]);
+    })();
+  }, [isPrimaryOnboarding]);
 
   const handleComplete = () => {
     if (!profileId) {
@@ -17,6 +43,9 @@ export default function ProfileSavedScreen() {
       return;
     }
 
+    // NOTE: you currently treat "user" as /(vault)/me,
+    // but your create flow for primary is in people/add.tsx,
+    // so type likely stays "dependent". That's fine.
     if (profileType === "user") {
       router.replace(`/(vault)/me?id=${profileId}&mode=complete`);
       return;
@@ -27,7 +56,7 @@ export default function ProfileSavedScreen() {
       return;
     }
 
-    // default: dependent
+    // default: dependent/person
     router.replace(`/(vault)/people/${profileId}?mode=complete`);
   };
 
@@ -38,9 +67,15 @@ export default function ProfileSavedScreen() {
           <View className="w-16 h-16 rounded-full bg-primary/10 items-center justify-center mb-4">
             <CheckCircle size={32} className="text-primary" />
           </View>
-          <Text className="text-2xl font-bold text-foreground">Profile saved</Text>
+
+          <Text className="text-2xl font-bold text-foreground">
+            {isPrimaryOnboarding ? "You’re all set" : "Profile saved"}
+          </Text>
+
           <Text className="text-muted-foreground text-center mt-2">
-            You can complete the profile now or come back later.
+            {isPrimaryOnboarding
+              ? "Your LifeVault is ready. You can finish details now or later."
+              : "You can complete the profile now or come back later."}
           </Text>
         </View>
 

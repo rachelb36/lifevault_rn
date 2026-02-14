@@ -1,12 +1,15 @@
-import React from "react";
+// app/(vault)/_layout.tsx
+import React, { useMemo } from "react";
 import { Stack, useRouter, useSegments } from "expo-router";
-import { TouchableOpacity, View, Text } from "react-native";
-import { BookOpen, FileText, Home, Settings, Users } from "lucide-react-native";
-import { useColorScheme } from "nativewind";
+import { View, Text, TouchableOpacity } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useColorScheme } from "nativewind";
+import { Home, Users, BookOpen, FileText, Settings } from "lucide-react-native";
+
+type NavItemKey = "home" | "household" | "contacts" | "documents" | "settings";
 
 type NavItem = {
-  key: "home" | "household" | "contacts" | "documents" | "settings";
+  key: NavItemKey;
   label: string;
   href: string;
   Icon: typeof Home;
@@ -17,16 +20,21 @@ const NAV_ITEMS: NavItem[] = [
   { key: "household", label: "Household", href: "/(vault)/household", Icon: Users },
   { key: "contacts", label: "Directory", href: "/(vault)/contacts", Icon: BookOpen },
   { key: "documents", label: "Documents", href: "/(vault)/documents", Icon: FileText },
-  { key: "settings", label: "Settings", href: "/(tabs)/settings", Icon: Settings },
+  { key: "settings", label: "Settings", href: "/(vault)/me", Icon: Settings },
 ];
 
-function activeKeyFromSegments(segments: string[]): NavItem["key"] {
-  const section = segments[1];
+function activeKeyFromSegments(segments: string[]): NavItemKey {
+  // segments typically look like: ["(vault)", "people", "add"]
+  const section = segments?.[1];
+
+  if (!section) return "home";
+
   if (section === "household" || section === "people" || section === "pets") return "household";
   if (section === "contacts") return "contacts";
   if (section === "documents") return "documents";
   if (section === "me") return "settings";
-  return "household";
+
+  return "home";
 }
 
 export default function VaultLayout() {
@@ -35,34 +43,49 @@ export default function VaultLayout() {
   const insets = useSafeAreaInsets();
   const { colorScheme } = useColorScheme();
   const isDark = colorScheme === "dark";
-  const activeKey = activeKeyFromSegments(segments);
-  const activeColor = isDark ? "#14b8a6" : "#0d9488";
-  const inactiveColor = isDark ? "#5a7268" : "#6b7280";
+
+  // Neutral, Apple-ish tab colors
+  const activeColor = isDark ? "#E5E7EB" : "#111827";
+  const inactiveColor = isDark ? "#9CA3AF" : "#6B7280";
+
+  const activeKey = useMemo(
+    () => activeKeyFromSegments(segments as unknown as string[]),
+    [segments]
+  );
 
   return (
-    <View style={{ flex: 1 }}>
-      <View style={{ flex: 1 }}>
-        <Stack screenOptions={{ headerShown: false }} />
-      </View>
+    <View className="flex-1 bg-background">
+      {/* Keep this layout “headless” — screens control their own headers */}
+      <Stack screenOptions={{ headerShown: false }} />
 
+      {/* Bottom nav */}
       <View
-        className="border-t border-border bg-card"
-        style={{ paddingBottom: Math.max(insets.bottom, 10), paddingTop: 8, paddingHorizontal: 10 }}
+        className="border-t border-border bg-background"
+        style={{
+          paddingBottom: Math.max(insets.bottom, 10),
+        }}
       >
-        <View className="flex-row items-center justify-between">
+        <View className="flex-row px-3 pt-2">
           {NAV_ITEMS.map((item) => {
             const isActive = item.key === activeKey;
-            const color = isActive ? activeColor : inactiveColor;
             const Icon = item.Icon;
+
             return (
               <TouchableOpacity
                 key={item.key}
-                onPress={() => router.replace(item.href as any)}
-                className="items-center justify-center px-2 py-1"
-                activeOpacity={0.8}
+                onPress={() => {
+                  router.replace(item.href as any);
+                }}
+                activeOpacity={0.85}
+                className="flex-1 items-center justify-center py-2"
               >
-                <Icon size={20} color={color} />
-                <Text style={{ color, fontSize: 11, marginTop: 2 }}>{item.label}</Text>
+                <Icon size={22} color={isActive ? activeColor : inactiveColor} />
+                <Text
+                  style={{ color: isActive ? activeColor : inactiveColor }}
+                  className="text-[11px] mt-1 font-medium"
+                >
+                  {item.label}
+                </Text>
               </TouchableOpacity>
             );
           })}

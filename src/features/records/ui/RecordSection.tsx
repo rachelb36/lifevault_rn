@@ -1,3 +1,4 @@
+// src/features/records/ui/RecordSection.tsx
 import React, { useMemo, useState } from "react";
 import { Pressable, Text, TouchableOpacity, View } from "react-native";
 import { ChevronDown, ChevronRight, Plus } from "lucide-react-native";
@@ -10,9 +11,7 @@ import { getTypesForCategory } from "@/domain/records/selectors/getTypesForCateg
 import { isSingletonType } from "@/domain/records/selectors/isSingletonType";
 import { formatDateLabel } from "@/shared/utils/date";
 
-export type { LifeVaultRecord } from "@/domain/records/record.model";
-
-type RecordSectionProps = {
+type Props = {
   category: RecordCategory;
   records: LifeVaultRecord[];
   onAdd: (recordType: RecordType) => void;
@@ -24,14 +23,8 @@ function labelize(value: string) {
   return value.replaceAll("_", " ");
 }
 
-export default function RecordSection({
-  category,
-  records,
-  onAdd,
-  onEdit,
-  onOpen,
-}: RecordSectionProps) {
-  const [expanded, setExpanded] = useState(true);
+export default function RecordSection({ category, records, onAdd, onEdit, onOpen }: Props) {
+  const [expanded, setExpanded] = useState(false);
 
   const categoryRecordTypes = useMemo(() => getTypesForCategory(category), [category]);
 
@@ -40,17 +33,24 @@ export default function RecordSection({
   }, [records, category]);
 
   const canAddType = (recordType: RecordType) => {
+    // MULTI: always addable
     if (!isSingletonType(recordType)) return true;
+    // SINGLE: only addable if not already present
     return !categoryRecords.some((r) => r.recordType === recordType);
   };
 
   return (
     <View className="mb-3 rounded-2xl border border-border bg-card">
+      {/* Section header (tap to expand/collapse) */}
       <Pressable
         onPress={() => setExpanded((v) => !v)}
-        className="flex-row items-center justify-between px-4 py-3"
+        className="flex-row items-center justify-between px-4 py-4"
+        hitSlop={8}
       >
-        <Text className="text-base font-semibold text-foreground">{labelize(category)}</Text>
+        <Text className="text-base font-semibold text-foreground">
+          {labelize(category)}
+        </Text>
+
         {expanded ? (
           <ChevronDown size={18} className="text-muted-foreground" />
         ) : (
@@ -58,28 +58,36 @@ export default function RecordSection({
         )}
       </Pressable>
 
+      {/* Expanded content */}
       {expanded && (
         <View className="px-4 pb-4">
+          {/* Add “pills” */}
           {categoryRecordTypes.length > 0 && (
             <View className="mb-3 flex-row flex-wrap gap-2">
               {categoryRecordTypes.map((recordType) => {
                 const disabled = !canAddType(recordType);
+                const label = getRecordMeta(recordType)?.label ?? labelize(recordType);
+
                 return (
                   <TouchableOpacity
                     key={recordType}
                     onPress={() => onAdd(recordType)}
                     disabled={disabled}
-                    className={`flex-row items-center rounded-full px-3 py-1.5 ${
+                    activeOpacity={0.85}
+                    className={`flex-row items-center rounded-full px-3 py-2 ${
                       disabled ? "bg-muted" : "bg-primary/10"
                     }`}
                   >
-                    <Plus size={12} className={disabled ? "text-muted-foreground" : "text-primary"} />
+                    <Plus
+                      size={12}
+                      className={disabled ? "text-muted-foreground" : "text-primary"}
+                    />
                     <Text
                       className={`ml-1 text-xs font-medium ${
                         disabled ? "text-muted-foreground" : "text-primary"
                       }`}
                     >
-                      {getRecordMeta(recordType)?.label ?? labelize(recordType)}
+                      {label}
                     </Text>
                   </TouchableOpacity>
                 );
@@ -87,26 +95,32 @@ export default function RecordSection({
             </View>
           )}
 
-          {categoryRecords.length === 0 ? (
-            <Text className="text-sm text-muted-foreground">No records yet.</Text>
-          ) : (
-            categoryRecords.map((record) => (
-              <TouchableOpacity
-                key={record.id}
-                onPress={() => onOpen(record)}
-                onLongPress={() => onEdit(record)}
-                className="mb-2 rounded-xl border border-border bg-background px-3 py-2"
-              >
-                <Text className="text-sm font-medium text-foreground">
-                  {record.title || getRecordMeta(record.recordType)?.label || "Record"}
-                </Text>
-                {record.updatedAt ? (
-                  <Text className="mt-0.5 text-xs text-muted-foreground">
-                    Updated {formatDateLabel(record.updatedAt, "Not set")}
+          {/* Records list
+              Per your request: when empty, do NOT show “No records yet.”
+              Just show pills above (expanded-only) and otherwise nothing here. */}
+          {categoryRecords.length > 0 && (
+            <View>
+              {categoryRecords.map((record) => (
+                <TouchableOpacity
+                  key={record.id}
+                  onPress={() => onOpen(record)}
+                  onLongPress={() => onEdit(record)}
+                  activeOpacity={0.85}
+                  className="mb-2 rounded-xl border border-border bg-background px-3 py-3"
+                >
+                  <Text className="text-sm font-medium text-foreground">
+                    {record.title || getRecordMeta(record.recordType)?.label || "Record"}
                   </Text>
-                ) : null}
-              </TouchableOpacity>
-            ))
+
+                  {/* Keep “updated at” small + subtle */}
+                  {record.updatedAt ? (
+                    <Text className="mt-1 text-[11px] text-muted-foreground">
+                      Updated {formatDateLabel(record.updatedAt, "—")}
+                    </Text>
+                  ) : null}
+                </TouchableOpacity>
+              ))}
+            </View>
           )}
         </View>
       )}

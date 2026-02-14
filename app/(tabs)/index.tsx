@@ -1,132 +1,176 @@
-import React from 'react';
-import { View, Text, TouchableOpacity } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { ThemeToggle } from '@/shared/ui/ThemeToggle';
-import { Plus, User, FileText, Users, Bell, PawPrint, Share2 } from 'lucide-react-native';
-import { cssInterop } from 'nativewind';
-import { useRouter } from 'expo-router';
-import { gql, useQuery } from '@apollo/client';
+// app/(tabs)/index.tsx
+import React, { useMemo } from "react";
+import { View, Text, TouchableOpacity, ScrollView } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
+import {
+  Plus,
+  PawPrint,
+  Users,
+  FileText,
+  Share2,
+  ChevronRight,
+} from "lucide-react-native";
+import { useColorScheme } from "nativewind";
 
-// Enable className styling for icons
-cssInterop(Plus, { className: { target: 'style', nativeStyleToProp: { color: true } } });
-cssInterop(User, { className: { target: 'style', nativeStyleToProp: { color: true } } });
-cssInterop(FileText, { className: { target: 'style', nativeStyleToProp: { color: true } } });
-cssInterop(Users, { className: { target: 'style', nativeStyleToProp: { color: true } } });
-cssInterop(Bell, { className: { target: 'style', nativeStyleToProp: { color: true } } });
-cssInterop(PawPrint, { className: { target: 'style', nativeStyleToProp: { color: true } } });
-cssInterop(Share2, { className: { target: 'style', nativeStyleToProp: { color: true } } });
+type QuickAction = {
+  id: string;
+  title: string;
+  subtitle: string;
+  icon: React.ReactNode;
+  onPress: () => void;
+};
 
-const ME = gql`
-  query Me {
-    me {
-      user {
-        id
-        email
-        firstName
-        lastName
-        hasOnboarded
-      }
-    }
-  }
-`;
+type RowLink = {
+  id: string;
+  title: string;
+  subtitle: string;
+  icon: React.ReactNode;
+  onPress: () => void;
+};
 
 export default function DashboardScreen() {
   const router = useRouter();
-  const { data, loading } = useQuery(ME, { fetchPolicy: 'network-only' });
-  const user = data?.me?.user;
-  const displayName = user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() : '';
+  const { colorScheme } = useColorScheme();
+  const isDark = colorScheme === "dark";
+
+  // If any of these routes don't exist in your app, just change the path strings:
+  // - Add Person: "/(vault)/people/add"
+  // - Add Pet: "/(vault)/pets/add"
+  // - Household: "/(vault)/household"
+  // - Documents: "/(vault)/documents"
+  // - Share: you can route to a share screen, or trigger a share action
+  const quickActions: QuickAction[] = useMemo(
+    () => [
+      {
+        id: "add-person",
+        title: "Add Person",
+        subtitle: "Create a new profile",
+        icon: <Plus size={18} color={isDark ? "#E5E7EB" : "#111827"} />,
+        onPress: () => router.push("/(vault)/people/add" as any),
+      },
+      {
+        id: "add-pet",
+        title: "Add Pet",
+        subtitle: "Add pet details & records",
+        icon: <PawPrint size={18} color={isDark ? "#E5E7EB" : "#111827"} />,
+        onPress: () => router.push("/(vault)/pets/add" as any),
+      },
+    ],
+    [router, isDark]
+  );
+
+  const links: RowLink[] = useMemo(
+    () => [
+      {
+        id: "household",
+        title: "Household",
+        subtitle: "People + pets overview",
+        icon: <Users size={18} color={isDark ? "#E5E7EB" : "#111827"} />,
+        onPress: () => router.push("/(vault)/household" as any),
+      },
+      {
+        id: "documents",
+        title: "Documents",
+        subtitle: "IDs, medical, insurance, files",
+        icon: <FileText size={18} color={isDark ? "#E5E7EB" : "#111827"} />,
+        onPress: () => router.push("/(vault)/documents" as any),
+      },
+      {
+        id: "share",
+        title: "Share Document",
+        subtitle: "Export or send a PDF",
+        icon: <Share2 size={18} color={isDark ? "#E5E7EB" : "#111827"} />,
+        onPress: () => {
+          // If you have a share screen, route there:
+          // router.push("/(vault)/share" as any);
+
+          // Otherwise route to documents as a placeholder:
+          router.push("/(vault)/documents" as any);
+        },
+      },
+    ],
+    [router, isDark]
+  );
 
   return (
     <SafeAreaView className="flex-1 bg-background">
-      {/* Header */}
-      <View className="flex-row items-center justify-between px-6 py-4">
-        <View>
-          <Text className="text-muted-foreground text-sm">Hello,</Text>
-          <Text className="text-2xl font-bold text-foreground">
-            {loading ? 'Loading…' : (displayName || 'Welcome')}
+      <ScrollView
+        contentContainerStyle={{ paddingBottom: 120 }}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Header */}
+        <View className="px-6 pt-4 pb-2">
+          <Text className="text-3xl font-bold text-foreground">Hello,</Text>
+          <Text className="text-3xl font-bold text-foreground">Welcome</Text>
+          <Text className="text-sm text-muted-foreground mt-2">
+            Your vault at a glance.
           </Text>
         </View>
-        <View className="flex-row items-center gap-4">
-          <TouchableOpacity>
-            <Bell className="text-foreground" size={24} />
-          </TouchableOpacity>
-          <ThemeToggle />
-        </View>
-      </View>
 
-      <View className="px-6 pb-8">
-        <View className="mt-2">
-          <Text className="text-sm font-semibold text-muted-foreground mb-3">Quick Actions</Text>
-          <View className="flex-row flex-wrap justify-between gap-4">
-            <TouchableOpacity
-              onPress={() => router.push('/(vault)/people/add')}
-              className="w-[48%] bg-card border border-border rounded-2xl p-4 items-center"
-              activeOpacity={0.85}
-            >
-              <View className="w-12 h-12 rounded-full bg-primary/10 items-center justify-center mb-3">
-                <Plus className="text-primary" size={22} />
-              </View>
-              <Text className="text-foreground font-semibold">Add Person</Text>
-            </TouchableOpacity>
+        {/* Quick Actions (clearly separated) */}
+        <View className="px-6 mt-5">
+          <Text className="text-xs font-semibold text-muted-foreground mb-2 tracking-wider">
+            QUICK ACTIONS
+          </Text>
 
-            <TouchableOpacity
-              onPress={() => router.push('/(vault)/pets/add')}
-              className="w-[48%] bg-card border border-border rounded-2xl p-4 items-center"
-              activeOpacity={0.85}
-            >
-              <View className="w-12 h-12 rounded-full bg-primary/10 items-center justify-center mb-3">
-                <PawPrint className="text-primary" size={22} />
-              </View>
-              <Text className="text-foreground font-semibold">Add Pet</Text>
-            </TouchableOpacity>
+          <View className="flex-row gap-3">
+            {quickActions.map((a) => (
+              <TouchableOpacity
+                key={a.id}
+                onPress={a.onPress}
+                activeOpacity={0.85}
+                className="flex-1 bg-card border border-border rounded-2xl p-4"
+              >
+                <View className="flex-row items-center justify-between">
+                  <View className="w-9 h-9 rounded-xl bg-muted items-center justify-center">
+                    {a.icon}
+                  </View>
+                  <ChevronRight size={18} className="text-muted-foreground" />
+                </View>
 
-            <TouchableOpacity
-              onPress={() => router.push('/(vault)/household')}
-              className="w-[48%] bg-card border border-border rounded-2xl p-4 items-center"
-              activeOpacity={0.85}
-            >
-              <View className="w-12 h-12 rounded-full bg-primary/10 items-center justify-center mb-3">
-                <Users className="text-primary" size={22} />
-              </View>
-              <Text className="text-foreground font-semibold">Household</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={() => router.push('/(vault)/me?primary=true')}
-              className="w-[48%] bg-card border border-border rounded-2xl p-4 items-center"
-              activeOpacity={0.85}
-            >
-              <View className="w-12 h-12 rounded-full bg-primary/10 items-center justify-center mb-3">
-                <User className="text-primary" size={22} />
-              </View>
-              <Text className="text-foreground font-semibold">Profiles</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={() => router.push('/(tabs)/documents')}
-              className="w-[48%] bg-card border border-border rounded-2xl p-4 items-center"
-              activeOpacity={0.85}
-            >
-              <View className="w-12 h-12 rounded-full bg-primary/10 items-center justify-center mb-3">
-                <FileText className="text-primary" size={22} />
-              </View>
-              <Text className="text-foreground font-semibold">Documents</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              onPress={() => router.push('/(tabs)/documents')}
-              className="w-[48%] bg-card border border-border rounded-2xl p-4 items-center"
-              activeOpacity={0.85}
-            >
-              <View className="w-12 h-12 rounded-full bg-primary/10 items-center justify-center mb-3">
-                <Share2 className="text-primary" size={22} />
-              </View>
-              <Text className="text-foreground font-semibold">Share Document</Text>
-            </TouchableOpacity>
+                <Text className="text-base font-semibold text-foreground mt-3">
+                  {a.title}
+                </Text>
+                <Text className="text-xs text-muted-foreground mt-1">
+                  {a.subtitle}
+                </Text>
+              </TouchableOpacity>
+            ))}
           </View>
         </View>
 
-      </View>
+        {/* Links list */}
+        <View className="px-6 mt-8">
+          <View className="bg-card border border-border rounded-2xl overflow-hidden">
+            {links.map((row, idx) => (
+              <TouchableOpacity
+                key={row.id}
+                onPress={row.onPress}
+                activeOpacity={0.8}
+                className={`px-4 py-4 flex-row items-center ${
+                  idx !== links.length - 1 ? "border-b border-border" : ""
+                }`}
+              >
+                <View className="w-9 h-9 rounded-xl bg-muted items-center justify-center">
+                  {row.icon}
+                </View>
+
+                <View className="flex-1 ml-4">
+                  <Text className="text-base font-semibold text-foreground">
+                    {row.title}
+                  </Text>
+                  <Text className="text-xs text-muted-foreground mt-1">
+                    {row.subtitle}
+                  </Text>
+                </View>
+
+                <ChevronRight size={18} className="text-muted-foreground" />
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }

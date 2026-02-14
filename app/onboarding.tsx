@@ -1,5 +1,4 @@
 // app/onboarding.tsx
-
 import React, { useRef, useState } from "react";
 import { View, Text, ScrollView, Dimensions, TouchableOpacity, Image, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -12,7 +11,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 type SlideData = {
   id: number;
-  image?: number;
+  image?: any;
   title: string;
   subtitle?: string;
   bullets?: string[];
@@ -32,13 +31,13 @@ const slides: SlideData[] = [
     title: "Privacy & Storage",
     subtitle:
       "Your information stays with you.\n\nIf you use iCloud device backup, your information will be restored automatically when you get a new phone.",
-
   },
   {
     id: 3,
     image: require("../assets/images/control.png"),
     title: "Control & Sharing\nYour information stays with you.",
-    subtitle: "Share or print information only when you choose.\n\nSensitive notes are kept private by default and are never included unless you explicitly allow it.\n\nYou’re always in control.",
+    subtitle:
+      "Share or print information only when you choose.\n\nSensitive notes are kept private by default and are never included unless you explicitly allow it.\n\nYou’re always in control.",
   },
 ];
 
@@ -49,8 +48,12 @@ export default function OnboardingScreen() {
 
   const completing = false;
 
+  const goToPrimarySetup = () => {
+    router.replace({ pathname: "/(vault)/people/add", params: { primary: "true" } });
+  };
+
   const handleContinue = async () => {
-    // not last slide → advance
+    // Not last slide → advance
     if (currentSlide < slides.length - 1) {
       scrollViewRef.current?.scrollTo({
         x: (currentSlide + 1) * SCREEN_WIDTH,
@@ -59,7 +62,7 @@ export default function OnboardingScreen() {
       return;
     }
 
-    // last slide → mark onboarding complete + go to primary setup
+    // Last slide → mark onboarding complete + go to primary setup
     try {
       const localOnly = await getLocalOnlyMode();
       if (localOnly) {
@@ -74,7 +77,8 @@ export default function OnboardingScreen() {
         });
       }
 
-      router.replace({ pathname: "/(vault)/people/add", params: { primary: "true" } });
+      await SecureStore.setItemAsync("hasOnboarded", "true");
+      goToPrimarySetup();
     } catch {
       await Promise.allSettled([
         SecureStore.deleteItemAsync("accessToken"),
@@ -147,7 +151,9 @@ export default function OnboardingScreen() {
         {slides.map((_, index) => (
           <View
             key={index}
-            className={`h-2 rounded-full ${index === currentSlide ? "w-8 bg-primary" : "w-2 bg-muted"}`}
+            className={`h-2 rounded-full ${
+              index === currentSlide ? "w-8 bg-primary" : "w-2 bg-muted"
+            }`}
           />
         ))}
       </View>
@@ -157,13 +163,15 @@ export default function OnboardingScreen() {
         <TouchableOpacity
           onPress={async () => {
             await SecureStore.setItemAsync("skipOnboarding", "true");
-            router.replace({ pathname: "/(vault)/people/add", params: { primary: "true" } });
+            await SecureStore.setItemAsync("hasOnboarded", "true");
+            goToPrimarySetup();
           }}
           className="items-center mb-4"
           activeOpacity={0.8}
         >
           <Text className="text-primary font-semibold">Skip for now</Text>
         </TouchableOpacity>
+
         <TouchableOpacity
           onPress={handleContinue}
           disabled={completing}
