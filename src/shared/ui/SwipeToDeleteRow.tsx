@@ -8,47 +8,63 @@ type Props = {
   titleForConfirm: string;
   onDelete: () => Promise<void> | void;
   disabled?: boolean;
+
+  // 👇 add this
+  simultaneousHandlers?: any;
 };
 
-export default function SwipeToDeleteRow({ children, titleForConfirm, onDelete, disabled }: Props) {
+// ✅ keep track of the currently-open row globally
+let OPEN_ROW: Swipeable | null = null;
+
+export default function SwipeToDeleteRow({
+  children,
+  titleForConfirm,
+  onDelete,
+  disabled,
+  simultaneousHandlers,
+}: Props) {
   const swipeRef = useRef<Swipeable>(null);
 
-  const renderRight = useMemo(() => {
-    return () => (
-      <View className="h-full justify-center pr-3">
-        <Pressable
-          disabled={disabled}
-          onPress={() => {
-            // close swipe first so UI feels clean
-            swipeRef.current?.close();
+  const renderRightActions = useMemo(() => {
+    function RightAction() {
+      return (
+        <View className="h-full justify-center pr-3">
+          <Pressable
+            disabled={disabled}
+            onPress={() => {
+              swipeRef.current?.close();
 
-            Alert.alert(
-              "Delete",
-              `Delete ${titleForConfirm}? This can’t be undone.`,
-              [
-                { text: "Cancel", style: "cancel" },
-                {
-                  text: "Delete",
-                  style: "destructive",
-                  onPress: async () => {
-                    try {
-                      await onDelete();
-                    } catch (e: any) {
-                      Alert.alert("Delete failed", e?.message ?? "Unknown error");
-                    }
+              Alert.alert(
+                "Delete",
+                `Delete ${titleForConfirm}? This can’t be undone.`,
+                [
+                  { text: "Cancel", style: "cancel" },
+                  {
+                    text: "Delete",
+                    style: "destructive",
+                    onPress: async () => {
+                      try {
+                        await onDelete();
+                      } catch (e: any) {
+                        Alert.alert("Delete failed", e?.message ?? "Unknown error");
+                      }
+                    },
                   },
-                },
-              ]
-            );
-          }}
-          className={`rounded-xl px-4 py-3 ${disabled ? "bg-muted" : "bg-destructive"}`}
-        >
-          <Text className={`${disabled ? "text-muted-foreground" : "text-destructive-foreground"} font-semibold`}>
-            Delete
-          </Text>
-        </Pressable>
-      </View>
-    );
+                ]
+              );
+            }}
+            className={`rounded-xl px-4 py-3 ${disabled ? "bg-muted" : "bg-destructive"}`}
+          >
+            <Text className={`${disabled ? "text-muted-foreground" : "text-destructive-foreground"} font-semibold`}>
+              Delete
+            </Text>
+          </Pressable>
+        </View>
+      );
+    }
+
+    RightAction.displayName = "SwipeToDeleteRightAction";
+    return RightAction;
   }, [disabled, onDelete, titleForConfirm]);
 
   return (
@@ -58,7 +74,18 @@ export default function SwipeToDeleteRow({ children, titleForConfirm, onDelete, 
       rightThreshold={32}
       friction={2}
       overshootRight={false}
-      renderRightActions={renderRight}
+      renderRightActions={renderRightActions}
+      simultaneousHandlers={simultaneousHandlers}
+      onSwipeableWillOpen={() => {
+        // ✅ close any other open row
+        if (OPEN_ROW && OPEN_ROW !== swipeRef.current) {
+          OPEN_ROW.close();
+        }
+        OPEN_ROW = swipeRef.current ?? null;
+      }}
+      onSwipeableClose={() => {
+        if (OPEN_ROW === swipeRef.current) OPEN_ROW = null;
+      }}
     >
       {children}
     </Swipeable>

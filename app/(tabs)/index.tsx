@@ -47,14 +47,14 @@ export default function DashboardScreen() {
         title: "Add Person",
         subtitle: "Create a new profile",
         icon: <Plus size={18} color={isDark ? "#E5E7EB" : "#111827"} />,
-        onPress: () => router.push("/(vault)/people/add" as any),
+        onPress: () => router.push("/people/add" as any),
       },
       {
         id: "add-pet",
         title: "Add Pet",
         subtitle: "Add pet details & records",
         icon: <PawPrint size={18} color={isDark ? "#E5E7EB" : "#111827"} />,
-        onPress: () => router.push("/(vault)/pets/add" as any),
+        onPress: () => router.push("/pets/add" as any),
       },
     ],
     [router, isDark]

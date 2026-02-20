@@ -4,6 +4,8 @@ import { ActivityIndicator, View } from "react-native";
 import { Redirect } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 
+const FORCE_ONBOARDING_TEMP = false;
+
 /**
  * Root entry gate.
  * This screen should NOT contain your dashboard UI.
@@ -32,7 +34,7 @@ export default function EntryGate() {
           flag2 === "true" ||
           flag2 === "1";
 
-        if (alive) setHasOnboarded(ok);
+        if (alive) setHasOnboarded(FORCE_ONBOARDING_TEMP ? false : ok);
       } finally {
         if (alive) setReady(true);
       }

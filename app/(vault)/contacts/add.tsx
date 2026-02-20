@@ -12,8 +12,6 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ChevronDown, Check } from "lucide-react-native";
-import * as SecureStore from "expo-secure-store";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import KeyboardDismiss from "@/shared/ui/KeyboardDismiss";
 import {
@@ -23,6 +21,7 @@ import {
   getContacts,
   upsertContact,
 } from "@/features/contacts/data/storage";
+import { getPrimaryPersonProfile, listPeopleProfiles, listPetProfiles } from "@/features/profiles/data/storage";
 
 type SelectProps = {
   label: string;
@@ -52,9 +51,6 @@ const ORG_CATEGORIES: ContactCategory[] = [
   "Legal",
   "Other",
 ];
-
-const DEPENDENTS_STORAGE_KEY = "dependents_v1";
-const PETS_STORAGE_KEY = "pets_v1";
 
 const CustomSelect: React.FC<SelectProps> = ({
   label,
@@ -145,66 +141,45 @@ export default function AddContactScreen() {
     Alert.alert("Coming soon", "iOS Contacts import will be added here.");
   }, []);
 
-  // Load profiles: primary user + dependents (SecureStore) + pets (AsyncStorage)
+  // Load profiles from canonical profile storage
   useEffect(() => {
     let cancelled = false;
 
     const loadProfiles = async () => {
-      const [fn, ln, pn, rawDependents, rawPets] = await Promise.all([
-        SecureStore.getItemAsync("userFirstName"),
-        SecureStore.getItemAsync("userLastName"),
-        SecureStore.getItemAsync("userPreferredName"),
-        SecureStore.getItemAsync(DEPENDENTS_STORAGE_KEY),
-        AsyncStorage.getItem(PETS_STORAGE_KEY),
+      const [primary, people, pets] = await Promise.all([
+        getPrimaryPersonProfile(),
+        listPeopleProfiles(),
+        listPetProfiles(),
       ]);
 
       if (cancelled) return;
 
-      const userName = (pn || `${fn || ""} ${ln || ""}`.trim() || "Primary User").trim();
+      const list: LinkedProfile[] = [];
+      const seen = new Set<string>();
 
-      const list: LinkedProfile[] = [{ id: "primary", name: userName, type: "person" }];
+      const orderedPeople = primary
+        ? [primary, ...people.filter((p) => p.id !== primary.id)]
+        : people;
 
-      // Dependents as person
-      if (rawDependents) {
-        try {
-          const parsed = JSON.parse(rawDependents);
-          if (Array.isArray(parsed)) {
-            parsed.forEach((p: any) => {
-              const display = (
-                p.preferredName ||
-                `${p.firstName || ""} ${p.lastName || ""}`.trim()
-              ).trim();
-              if (display) {
-                list.push({
-                  id: String(p.id || display),
-                  name: display,
-                  type: "person",
-                });
-              }
-            });
-          }
-        } catch {
-          // ignore
-        }
-      }
+      orderedPeople.forEach((p) => {
+        if (seen.has(p.id)) return;
+        seen.add(p.id);
+        list.push({
+          id: p.id,
+          name: (p.preferredName || `${p.firstName} ${p.lastName}`.trim() || "Person").trim(),
+          type: "person",
+        });
+      });
 
-      // Pets as pet
-      if (rawPets) {
-        try {
-          const parsedPets = JSON.parse(rawPets);
-          if (Array.isArray(parsedPets)) {
-            parsedPets.forEach((pet: any) => {
-              const petName = String(pet.petName || pet.name || "").trim();
-              const petId = String(pet.id || petName).trim();
-              if (petName && petId) {
-                list.push({ id: petId, name: petName, type: "pet" });
-              }
-            });
-          }
-        } catch {
-          // ignore
-        }
-      }
+      pets.forEach((pet) => {
+        if (seen.has(pet.id)) return;
+        seen.add(pet.id);
+        list.push({
+          id: pet.id,
+          name: pet.petName || "Pet",
+          type: "pet",
+        });
+      });
 
       setAvailableProfiles(list);
     };

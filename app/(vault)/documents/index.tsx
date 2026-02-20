@@ -280,19 +280,20 @@ export default function DocumentsScreen() {
 
         <ScrollView
           horizontal
+          style={{ flexGrow: 0 }}
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal: 24, paddingVertical: 16, gap: 8 }}
+          contentContainerStyle={{ paddingHorizontal: 24, paddingVertical: 10, gap: 6, alignItems: 'center' }}
           keyboardShouldPersistTaps="handled"
         >
           {filterOptions.map((option) => (
             <Pressable
               key={option.value}
               onPress={() => setActiveFilter(option.value)}
-              className={`px-4 py-2 rounded-full border ${
+              className={`self-start px-4 py-1 rounded-full border ${
                 activeFilter === option.value ? 'bg-primary border-primary' : 'bg-card border-border'
               }`}
             >
-              <Text className={`text-sm font-medium ${activeFilter === option.value ? 'text-primary-foreground' : 'text-foreground'}`}>
+              <Text className={`text-xs font-medium ${activeFilter === option.value ? 'text-primary-foreground' : 'text-foreground'}`}>
                 {option.label}
               </Text>
             </Pressable>
@@ -351,7 +352,13 @@ export default function DocumentsScreen() {
 
                 <View>
                   <Text className="text-foreground text-sm font-medium mb-2">Category</Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+                  <ScrollView
+                    horizontal
+                    style={{ flexGrow: 0 }}
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={{ alignItems: 'center' }}
+                    keyboardShouldPersistTaps="handled"
+                  >
                     <View className="flex-row gap-2">
                       {filterOptions
                         .filter((option) => option.value !== 'all')
@@ -359,7 +366,7 @@ export default function DocumentsScreen() {
                           <Pressable
                             key={option.value}
                             onPress={() => setUploadCategory(option.value as DocumentType)}
-                            className={`px-3 py-2 rounded-full border ${
+                            className={`self-start px-4 py-1 rounded-full border ${
                               uploadCategory === option.value ? 'bg-primary border-primary' : 'bg-card border-border'
                             }`}
                           >

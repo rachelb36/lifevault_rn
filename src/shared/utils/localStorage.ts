@@ -1,4 +1,5 @@
 import * as SecureStore from "expo-secure-store";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const LOCAL_ONLY_KEY = "localOnlyMode";
 const LOCAL_AUTH_KEY = "localAuth";
@@ -76,30 +77,31 @@ export async function seedLocalData(): Promise<void> {
   await SecureStore.setItemAsync("userProfileCreated", "true");
   await SecureStore.setItemAsync("primaryProfileCreated", "true");
 
-  const dependents = [
+  const nowIso = new Date().toISOString();
+  const profiles = [
     {
       id: `dep-${Date.now()}`,
+      profileType: "PERSON",
+      createdAt: nowIso,
+      updatedAt: nowIso,
       firstName: "Jamie",
       lastName: "Morgan",
       preferredName: "Jamie",
       relationship: "Child",
       dob: "2014-06-20",
-      avatar: "",
       isPrimary: false,
     },
-  ];
-
-  const pets = [
     {
       id: `pet-${Date.now()}`,
+      profileType: "PET",
+      createdAt: nowIso,
+      updatedAt: nowIso,
       petName: "Max",
       kind: "Dog",
       dob: "2019-03-12",
       breed: "Labrador",
-      avatar: "",
     },
   ];
 
-  await SecureStore.setItemAsync("dependents_v1", JSON.stringify(dependents));
-  await SecureStore.setItemAsync("pets_v1", JSON.stringify(pets));
+  await AsyncStorage.setItem("profiles_v2", JSON.stringify(profiles));
 }

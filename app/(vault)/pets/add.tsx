@@ -1,255 +1,326 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import { useApolloClient, useMutation } from "@apollo/client";
-import { View, Text, ScrollView, TextInput, TouchableOpacity, Alert } from "react-native";
+// app/(vault)/pet/add.tsx
+import React, { useEffect, useMemo, useState } from "react";
+import { Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import {
-  PawPrint,
-  Calendar,
-  Plus,
-  Trash,
-  Phone,
-  FileText,
-  AlertCircle,
-  Edit,
-  Pill,
-  Clock,
-  Archive,
-  Shield,
-  Check,
-} from "lucide-react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { ArrowLeft, Calendar, PawPrint, ChevronDown, ChevronUp, Plus, Trash2, Clock } from "lucide-react-native";
 
 import KeyboardDismiss from "@/shared/ui/KeyboardDismiss";
 import DatePickerModal from "@/shared/ui/DatePickerModal";
-import { toIsoDateOnly, parseDate, formatDateLabel } from "@/shared/utils/date";
-import { getLocalOnlyMode } from "@/shared/utils/localStorage";
+import TimePickerModal from "@/shared/ui/TimePickerModal";
 
-import { KIND_OPTIONS, DOG_BREEDS, CAT_BREEDS } from "@/features/pets/domain/constants";
-import { MY_VAULTS, CREATE_VAULT, CREATE_ENTITY, UPSERT_RECORD } from "@/features/pets/data/graphql";
-import type {
-  ChecklistItem,
-  Medication,
-  ServiceDocument,
-  ServiceProvider,
-  VaccinationRecord,
-  Dateish,
-} from "@/features/pets/domain/pet.model";
-import { mergeChecklistPreservingCustom } from "@/features/pets/domain/checklist";
+import { toIsoDateOnly, formatDateLabel } from "@/shared/utils/date";
 
-import { AccordionSection } from "@/features/pets/ui/components/AccordionSection";
-import { CustomSelect } from "@/features/pets/ui/components/CustomSelect";
-import { VaccinationModal } from "@/features/pets/ui/components/modals/VaccinationModal";
-import { ServiceDocumentModal } from "@/features/pets/ui/components/modals/ServiceDocumentModal";
-import { MedicationModal } from "@/features/pets/ui/components/modals/MedicationModal";
-import { ProviderModal } from "@/features/pets/ui/components/modals/ProviderModal";
-import { ChecklistAddItemModal } from "@/features/pets/ui/components/modals/ChecklistAddItemModal";
+import {
+  KIND_OPTIONS,
+  DOG_BREEDS,
+  CAT_BREEDS,
+  PET_PORTION_UNIT_OPTIONS,
+  PET_FOOD_TYPE_OPTIONS,
+  PET_TREAT_ALLOWED_OPTIONS,
+  PET_AVOID_TRIGGER_OPTIONS,
+  PET_SLEEP_LOCATION_OPTIONS,
+  PET_CRATE_RULE_OPTIONS,
+  PET_FEAR_OPTIONS,
+  PET_SEPARATION_ANXIETY_LEVEL_OPTIONS,
+  PET_MED_ADMIN_METHOD_OPTIONS,
+  DOG_VACCINATION_OPTIONS,
+  CAT_VACCINATION_OPTIONS,
+} from "@/features/pets/constants/options";
+
+import { findProfile, upsertProfile } from "@/features/profiles/data/storage";
+import type { PetProfile, PetMedication } from "@/features/profiles/domain/types";
+
+function normalizeKind(kind: string) {
+  return kind.trim().toLowerCase();
+}
+
+function pad2(n: number) {
+  return String(n).padStart(2, "0");
+}
+
+function formatHHmmForDisplay(hhmm?: string) {
+  if (!hhmm) return "";
+  const [hStr, mStr] = hhmm.split(":");
+  const h = Number(hStr);
+  const m = Number(mStr);
+  if (!isFinite(h) || !isFinite(m)) return hhmm;
+
+  const hour12 = ((h + 11) % 12) + 1;
+  const ampm = h >= 12 ? "PM" : "AM";
+  return `${hour12}:${pad2(m)} ${ampm}`;
+}
+
+function Section({
+  title,
+  open,
+  onToggle,
+  children,
+}: {
+  title: string;
+  open: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <View className="rounded-2xl border border-border bg-card overflow-hidden">
+      <TouchableOpacity onPress={onToggle} className="px-4 py-4 flex-row items-center justify-between" activeOpacity={0.85}>
+        <Text className="text-foreground font-semibold">{title}</Text>
+        {open ? <ChevronUp className="text-muted-foreground" size={18} /> : <ChevronDown className="text-muted-foreground" size={18} />}
+      </TouchableOpacity>
+      {open ? <View className="px-4 pb-4 gap-3">{children}</View> : null}
+    </View>
+  );
+}
+
+function PillMultiSelect({
+  options,
+  value,
+  onChange,
+}: {
+  options: readonly string[];
+  value: string[];
+  onChange: (next: string[]) => void;
+}) {
+  return (
+    <View className="flex-row flex-wrap gap-2">
+      {options.map((opt) => {
+        const active = value.includes(opt);
+        return (
+          <TouchableOpacity
+            key={opt}
+            onPress={() => {
+              if (active) onChange(value.filter((x) => x !== opt));
+              else onChange([...value, opt]);
+            }}
+            className={`px-3 py-2 rounded-full border ${active ? "bg-primary border-primary" : "bg-card border-border"}`}
+            activeOpacity={0.85}
+          >
+            <Text className={active ? "text-primary-foreground text-xs font-semibold" : "text-foreground text-xs"}>{opt}</Text>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
+}
+
+function PillSingleSelect({
+  options,
+  value,
+  onChange,
+}: {
+  options: readonly string[];
+  value: string;
+  onChange: (next: string) => void;
+}) {
+  return (
+    <View className="flex-row flex-wrap gap-2">
+      {options.map((opt) => {
+        const active = value === opt;
+        return (
+          <TouchableOpacity
+            key={opt}
+            onPress={() => onChange(opt)}
+            className={`px-3 py-2 rounded-full border ${active ? "bg-primary border-primary" : "bg-card border-border"}`}
+            activeOpacity={0.85}
+          >
+            <Text className={active ? "text-primary-foreground text-xs font-semibold" : "text-foreground text-xs"}>{opt}</Text>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
+}
+
+type VaxRow = {
+  id: string;
+  name: string;
+  date: Date | null;
+  notes?: string;
+};
 
 export default function AddPetScreen() {
   const router = useRouter();
-  const { id } = useLocalSearchParams();
+  const { id } = useLocalSearchParams<{ id?: string }>();
   const editId = Array.isArray(id) ? id[0] : id;
-  const isEditing = !!editId;
+  const isEditing = Boolean(editId);
 
-  const PETS_STORAGE_KEY = "pets_v1";
-
-  const apolloClient = useApolloClient();
-  const [createEntity, { loading: isSaving }] = useMutation(CREATE_ENTITY);
-  const [upsertRecord] = useMutation(UPSERT_RECORD);
-
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(["basics"]));
-
-  // Basics
-  type PetDateType = "dob" | "adoption";
-  const [petDateType, setPetDateType] = useState<PetDateType>("dob");
+  // Overview
   const [petName, setPetName] = useState("");
   const [kind, setKind] = useState("");
   const [kindOtherText, setKindOtherText] = useState("");
-  const [petDate, setPetDate] = useState<Date | null>(null);
   const [breed, setBreed] = useState("");
   const [breedOtherText, setBreedOtherText] = useState("");
-  const [breedOptionalText, setBreedOptionalText] = useState("");
-
-  // Vet & Microchip
-  const [vetContact, setVetContact] = useState<{ name: string; clinicName?: string; phone: string } | null>(null);
+  const [breedSearch, setBreedSearch] = useState("");
+  const [showBreedModal, setShowBreedModal] = useState(false);
+  const [showVaxModal, setShowVaxModal] = useState(false);
   const [microchipId, setMicrochipId] = useState("");
 
-  // Records
-  const [vaccinations, setVaccinations] = useState<VaccinationRecord[]>([]);
-  const [serviceDocuments, setServiceDocuments] = useState<ServiceDocument[]>([]);
-  const [showVaccinationModal, setShowVaccinationModal] = useState(false);
-  const [showServiceDocModal, setShowServiceDocModal] = useState(false);
-  const [newVaccination, setNewVaccination] = useState<{ name: string; date: Date | null; notes: string }>({
-    name: "",
-    date: null,
-    notes: "",
-  });
-  const [newServiceDoc, setNewServiceDoc] = useState<{ type: ServiceDocument["type"]; expiryDate: Date | null }>({
-    type: "ESA Letter",
-    expiryDate: null,
-  });
+  // Date (DOB/Adoption toggle)
+  const [dobDate, setDobDate] = useState<Date | null>(null);
+  const [adoptionDate, setAdoptionDate] = useState<Date | null>(null);
+  const [dateMode, setDateMode] = useState<"DOB" | "ADOPTION">("DOB");
+  const [showDatePicker, setShowDatePicker] = useState(false);
+
+  // Weight
+  const [weightValue, setWeightValue] = useState("");
+  const [weightUnit, setWeightUnit] = useState<"lb" | "kg">("lb");
+
+  // Daily Care
+  const [foodBrand, setFoodBrand] = useState("");
+  const [foodType, setFoodType] = useState("");
+  const [portionAmount, setPortionAmount] = useState("");
+  const [portionUnit, setPortionUnit] = useState<(typeof PET_PORTION_UNIT_OPTIONS)[number]>("Cups");
+  const [feedingTimes, setFeedingTimes] = useState<string[]>([]); // HH:mm
+  const [treatAllowed, setTreatAllowed] = useState("");
+  const [treatRulesNotes, setTreatRulesNotes] = useState("");
+
+  // Bathroom / Walk
+  const [pottyTimesPerDay, setPottyTimesPerDay] = useState("3");
+  const [pottyTimes, setPottyTimes] = useState<string[]>([]); // HH:mm
+  const [leashHarnessNotes, setLeashHarnessNotes] = useState("");
+  const [avoidTriggers, setAvoidTriggers] = useState<string[]>([]);
+  const [avoidTriggersNotes, setAvoidTriggersNotes] = useState("");
+
+  // Sleep
+  const [sleepLocation, setSleepLocation] = useState("");
+  const [crateRule, setCrateRule] = useState("");
+  const [bedtimeRoutine, setBedtimeRoutine] = useState("");
+
+  // Behavior & Safety
+  const [fears, setFears] = useState<string[]>([]);
+  const [fearOtherText, setFearOtherText] = useState("");
+  const [separationAnxietyLevel, setSeparationAnxietyLevel] = useState("");
+  const [separationAnxietyNotes, setSeparationAnxietyNotes] = useState("");
 
   // Medications
-  const [medications, setMedications] = useState<Medication[]>([]);
-  const [showMedicationModal, setShowMedicationModal] = useState(false);
-  const [editingMedication, setEditingMedication] = useState<Medication | null>(null);
-  const [medicationTab, setMedicationTab] = useState<"active" | "history">("active");
-  const [newMedication, setNewMedication] = useState<{
-    name: string;
-    dosage: string;
-    frequency: string;
-    startDate: Date | null;
-    endDate: Date | null;
-    notes: string;
-  }>({
-    name: "",
-    dosage: "",
-    frequency: "",
-    startDate: null,
-    endDate: null,
-    notes: "",
-  });
+  const [medications, setMedications] = useState<PetMedication[]>([]);
 
-  // Providers
-  const [serviceProviders, setServiceProviders] = useState<ServiceProvider[]>([]);
-  const [showProviderModal, setShowProviderModal] = useState(false);
-  const [editingProvider, setEditingProvider] = useState<ServiceProvider | null>(null);
-  const [newProvider, setNewProvider] = useState<{ name: string; type: ServiceProvider["type"]; phone: string; notes: string }>({
-    name: "",
-    type: "Walker",
-    phone: "",
-    notes: "",
-  });
+  // Vaccinations
+  const [vaccinations, setVaccinations] = useState<VaxRow[]>([]);
+  const [vaxSearch, setVaxSearch] = useState("");
+  const [vaxPickerForId, setVaxPickerForId] = useState<string | null>(null);
+  const [showVaxDatePicker, setShowVaxDatePicker] = useState(false);
+  const [vaxDateForId, setVaxDateForId] = useState<string | null>(null);
 
-  // Insurance
-  const [insuranceProvider, setInsuranceProvider] = useState("");
-  const [policyNumber, setPolicyNumber] = useState("");
-  const [insuranceNotes, setInsuranceNotes] = useState("");
+  // Time picker control (feeding/potty)
+  const [timePickerOpen, setTimePickerOpen] = useState(false);
+  const [timePickerValue, setTimePickerValue] = useState<string | undefined>(undefined);
+  const [timePickerContext, setTimePickerContext] = useState<{ kind: "FEED" | "POTTY"; index: number } | null>(null);
 
-  // Emergency
-  const [emergencyInstructions, setEmergencyInstructions] = useState("");
+  // Section open states
+  const [openOverview, setOpenOverview] = useState(true);
+  const [openDailyCare, setOpenDailyCare] = useState(false);
+  const [openBathroom, setOpenBathroom] = useState(false);
+  const [openSleep, setOpenSleep] = useState(false);
+  const [openBehavior, setOpenBehavior] = useState(false);
+  const [openMeds, setOpenMeds] = useState(false);
+  const [openVax, setOpenVax] = useState(false);
 
-  // Checklist
-  const [checklistItems, setChecklistItems] = useState<ChecklistItem[]>([]);
-  const [showAddItemModal, setShowAddItemModal] = useState(false);
-  const [newItemText, setNewItemText] = useState("");
+  // Save state
+  const [saveLabel, setSaveLabel] = useState<"idle" | "saved">("idle");
 
-  // Shared Date Picker
-  const [datePickerState, setDatePickerState] = useState<{ visible: boolean; title: string; value: Date | null }>({
-    visible: false,
-    title: "Select date",
-    value: null,
-  });
-  const datePickerOnConfirmRef = useRef<(date: Date) => void>(() => {});
-
-  const openDatePicker = (title: string, currentValue: Dateish, onConfirm: (date: Date) => void) => {
-    setDatePickerState({ visible: true, title, value: parseDate(currentValue) });
-    datePickerOnConfirmRef.current = (d: Date) => onConfirm(d);
-  };
-
-  const closeDatePicker = () => setDatePickerState((p) => ({ ...p, visible: false }));
-
-  const handleDateConfirm = (date: Date) => {
-    datePickerOnConfirmRef.current(date);
-    closeDatePicker();
-  };
-
-  // Derived UI
-  const isDog = kind === "Dog";
-  const isCat = kind === "Cat";
+  const isDog = normalizeKind(kind) === "dog";
+  const isCat = normalizeKind(kind) === "cat";
   const showBreedDropdown = isDog || isCat;
-  const showKindOther = kind === "Other";
-  const showSpecificsField = !!kind && !showBreedDropdown && kind !== "Other";
-  const showBreedOtherText = showBreedDropdown && breed === "Other";
 
   const breedOptions = useMemo(() => {
-    if (isDog) return [...DOG_BREEDS];
-    if (isCat) return [...CAT_BREEDS];
+    if (isDog) return DOG_BREEDS;
+    if (isCat) return CAT_BREEDS;
     return [];
   }, [isDog, isCat]);
 
-  const toggleSection = (sectionId: string) => {
-    setExpandedSections((prev) => {
-      const next = new Set(prev);
-      if (next.has(sectionId)) next.delete(sectionId);
-      else next.add(sectionId);
+  const filteredBreedOptions = useMemo(() => {
+    const query = breedSearch.trim().toLowerCase();
+    if (!query) return breedOptions;
+    return breedOptions.filter((option) => option.toLowerCase().includes(query));
+  }, [breedOptions, breedSearch]);
+
+  const vaxOptions = useMemo(() => {
+    if (isDog) return DOG_VACCINATION_OPTIONS;
+    if (isCat) return CAT_VACCINATION_OPTIONS;
+    return [];
+  }, [isDog, isCat]);
+
+  const filteredVaxOptions = useMemo(() => {
+    const q = vaxSearch.trim().toLowerCase();
+    if (!q) return vaxOptions;
+    return vaxOptions.filter((x) => x.toLowerCase().includes(q));
+  }, [vaxOptions, vaxSearch]);
+
+  // Keep potty times array length in sync with selection
+  useEffect(() => {
+    const n = Math.max(1, Math.min(6, Number(pottyTimesPerDay || "1")));
+    setPottyTimes((prev) => {
+      const next = prev.slice(0, n);
+      while (next.length < n) next.push("");
       return next;
     });
-  };
+  }, [pottyTimesPerDay]);
 
-  const handleSelectKind = (val: string) => {
-    setKind(val);
-    setKindOtherText("");
-    setBreed("");
-    setBreedOtherText("");
-    setBreedOptionalText("");
-  };
-
-  const getOrCreateVaultId = async () => {
-    const res = await apolloClient.query({ query: MY_VAULTS, fetchPolicy: "network-only" });
-    const existing = res.data?.myVaults?.[0]?.id;
-    if (existing) return existing;
-
-    const created = await apolloClient.mutate({
-      mutation: CREATE_VAULT,
-      variables: { input: { name: "My Family Vault" } },
-    });
-
-    return created.data?.createVault?.id as string;
-  };
-
-  // Load edit state
+  // Load profile if editing
   useEffect(() => {
-    if (!isEditing) return;
+    if (!isEditing || !editId) return;
     let cancelled = false;
 
     (async () => {
-      const raw = await AsyncStorage.getItem(PETS_STORAGE_KEY);
-      const list = raw ? JSON.parse(raw) : [];
-      const found = Array.isArray(list) ? list.find((p: any) => p.id === editId) : null;
-      if (!found || cancelled) return;
+      const profile = await findProfile(editId);
+      if (!profile || cancelled || profile.profileType !== "PET") return;
 
-      setPetName(found.petName || "");
-      setKind(found.kind || "");
-      setKindOtherText(found.kindOtherText || "");
+      setPetName(profile.petName || "");
+      setKind(profile.kind || "");
+      setKindOtherText(profile.kindOtherText || "");
+      setBreed(profile.breed || "");
+      setBreedOtherText(profile.breedOtherText || "");
+      setMicrochipId(profile.microchipId || "");
 
-      const inferredType: PetDateType =
-        found.petDateType === "adoption" || found.petDateType === "dob"
-          ? found.petDateType
-          : found.adoptionDate && !found.dob
-            ? "adoption"
-            : "dob";
+      setDobDate(profile.dob ? new Date(profile.dob) : null);
+      setAdoptionDate(profile.adoptionDate ? new Date(profile.adoptionDate) : null);
 
-      setPetDateType(inferredType);
+      setWeightValue(profile.weightValue || "");
+      setWeightUnit(profile.weightUnit || "lb");
 
-      const loadedDob = found.dob ? new Date(found.dob) : null;
-      const loadedAdoption = found.adoptionDate ? new Date(found.adoptionDate) : null;
-      setPetDate(inferredType === "adoption" ? loadedAdoption : loadedDob);
+      setFoodBrand(profile.foodBrand || "");
+      setFoodType(profile.foodType || "");
+      setPortionAmount(profile.portionAmount || "");
+      setPortionUnit((profile.portionUnit as typeof PET_PORTION_UNIT_OPTIONS[number]) || "Cups");
+      setFeedingTimes(profile.feedingTimes?.length ? profile.feedingTimes : []);
+      setTreatAllowed(profile.treatAllowed || "");
+      setTreatRulesNotes(profile.treatRulesNotes || "");
 
-      setBreed(found.breed || "");
-      setBreedOtherText(found.breedOtherText || "");
-      setBreedOptionalText(found.breedOptionalText || "");
+      setPottyTimesPerDay(profile.pottyTimesPerDay || "3");
+      setPottyTimes(profile.pottyTimes?.length ? profile.pottyTimes : []);
 
-      setVetContact(found.vetContact || null);
-      setMicrochipId(found.microchipId || "");
+      setLeashHarnessNotes(profile.leashHarnessNotes || "");
+      setAvoidTriggers(profile.avoidTriggers || []);
+      setAvoidTriggersNotes(profile.avoidTriggersNotes || "");
 
-      setVaccinations((found.vaccinations || []).map((v: any) => ({ ...v, date: v.date ? new Date(v.date) : null })));
-      setServiceDocuments((found.serviceDocuments || []).map((d: any) => ({ ...d, expiryDate: d.expiryDate ? new Date(d.expiryDate) : null })));
-      setMedications(
-        (found.medications || []).map((m: any) => ({
-          ...m,
-          startDate: m.startDate ? new Date(m.startDate) : null,
-          endDate: m.endDate ? new Date(m.endDate) : null,
+      setSleepLocation(profile.sleepLocation || "");
+      setCrateRule(profile.crateRule || "");
+      setBedtimeRoutine(profile.bedtimeRoutine || "");
+
+      setFears(profile.fears || []);
+      setSeparationAnxietyLevel(profile.separationAnxietyLevel || "");
+      setSeparationAnxietyNotes(profile.separationAnxietyNotes || "");
+
+      setMedications(profile.medications || []);
+
+      setVaccinations(
+        (profile.vaccinations || []).map((v) => ({
+          id: v.id || `vax_${Date.now()}`,
+          name: v.name || "",
+          date: v.date ? new Date(v.date) : null,
+          notes: v.notes || "",
         }))
       );
-      setServiceProviders(found.serviceProviders || []);
 
-      setInsuranceProvider(found.insuranceProvider || "");
-      setPolicyNumber(found.policyNumber || "");
-      setInsuranceNotes(found.insuranceNotes || "");
-
-      setEmergencyInstructions(found.emergencyInstructions || "");
-      setChecklistItems(found.checklistItems || []);
+      // Expand all sections so every field is visible when editing
+      setOpenDailyCare(true);
+      setOpenBathroom(true);
+      setOpenSleep(true);
+      setOpenBehavior(true);
+      setOpenMeds(true);
+      setOpenVax(true);
     })();
 
     return () => {
@@ -257,847 +328,943 @@ export default function AddPetScreen() {
     };
   }, [isEditing, editId]);
 
-  // ✅ Preserve custom checklist items when kind changes
-  useEffect(() => {
-    setChecklistItems((prev) => mergeChecklistPreservingCustom(kind, prev));
-  }, [kind]);
+  function openTimePicker(kindKey: "FEED" | "POTTY", index: number, current?: string) {
+    setTimePickerContext({ kind: kindKey, index });
+    setTimePickerValue(current);
+    setTimePickerOpen(true);
+  }
 
-  const validate = (): string | null => {
-    if (!petName.trim()) return "Please enter a pet name.";
-    if (!kind) return "Please select a kind.";
-    if (kind === "Other" && !kindOtherText.trim()) return "Please specify the kind.";
-    if ((kind === "Dog" || kind === "Cat") && !breed) return "Please select a breed.";
-    if ((kind === "Dog" || kind === "Cat") && breed === "Other" && !breedOtherText.trim()) return "Please specify the breed.";
+  const handleTimePicked = (hhmm: string) => {
+    const ctx = timePickerContext;
+    if (!ctx) return;
 
-    if (!petDateType) return "Please select Date of Birth or Adoption Date.";
-
-    if (!petDate || Number.isNaN(petDate.getTime())) {
-      return petDateType === "adoption" ? "Please select an Adoption Date." : "Please select a Date of Birth.";
+    if (ctx.kind === "FEED") {
+      setFeedingTimes((prev) => {
+        const next = [...prev];
+        next[ctx.index] = hhmm;
+        return next;
+      });
+    } else {
+      setPottyTimes((prev) => {
+        const next = [...prev];
+        next[ctx.index] = hhmm;
+        return next;
+      });
     }
 
+    setTimePickerOpen(false);
+    setTimePickerContext(null);
+  };
+
+  const validate = () => {
+    if (!petName.trim()) return "Please enter a pet name.";
+    if (!kind.trim()) return "Please select a pet type.";
+    if (normalizeKind(kind) === "other" && !kindOtherText.trim()) return "Please specify the pet type.";
+    if (showBreedDropdown && !breed.trim()) return "Please select a breed.";
+    if (showBreedDropdown && normalizeKind(breed) === "other" && !breedOtherText.trim()) return "Please specify the breed.";
     return null;
   };
 
-  const buildInput = () => {
-    const normalizedVet =
-      vetContact && (vetContact.name.trim() || (vetContact.clinicName || "").trim() || vetContact.phone.trim())
-        ? {
-            name: vetContact.name.trim(),
-            clinicName: (vetContact.clinicName || "").trim(),
-            phone: vetContact.phone.trim(),
-          }
-        : null;
-
-    return {
-      petName: petName.trim(),
-      kind,
-      kindOtherText: kindOtherText.trim() || "",
-      petDateType,
-      dob: petDateType === "dob" && petDate && !Number.isNaN(petDate.getTime()) ? toIsoDateOnly(petDate) : "",
-      adoptionDate: petDateType === "adoption" && petDate && !Number.isNaN(petDate.getTime()) ? toIsoDateOnly(petDate) : "",
-      breed: breed || "",
-      breedOtherText: breedOtherText.trim() || "",
-      breedOptionalText: breedOptionalText.trim() || "",
-      vetContact: normalizedVet,
-      microchipId: microchipId.trim() || "",
-      vaccinations: vaccinations.map((v) => ({ ...v, date: v.date ? toIsoDateOnly(v.date) : "" })),
-      serviceDocuments: serviceDocuments.map((d) => ({ ...d, expiryDate: d.expiryDate ? toIsoDateOnly(d.expiryDate) : "" })),
-      medications: medications.map((m) => ({
-        ...m,
-        startDate: m.startDate ? toIsoDateOnly(m.startDate) : "",
-        endDate: m.endDate ? toIsoDateOnly(m.endDate) : "",
-      })),
-      serviceProviders,
-      insuranceProvider: insuranceProvider.trim() || "",
-      policyNumber: policyNumber.trim() || "",
-      insuranceNotes: insuranceNotes.trim() || "",
-      emergencyInstructions: emergencyInstructions.trim() || "",
-      checklistItems,
-    };
-  };
-
   const handleSave = async () => {
-    try {
-      const error = validate();
-      if (error) {
-        Alert.alert("Required", error);
-        return;
-      }
-
-      const input = buildInput();
-
-      const raw = await AsyncStorage.getItem(PETS_STORAGE_KEY);
-      const list = raw ? JSON.parse(raw) : [];
-
-      const baseItem = {
-        id: editId || `pet-${Date.now()}`,
-        ...input,
-        createdAt: new Date().toISOString(),
-      };
-
-      if (isEditing) {
-        const next = Array.isArray(list)
-          ? list.map((p: any) =>
-              p.id === editId ? { ...p, ...baseItem, createdAt: p.createdAt || baseItem.createdAt } : p
-            )
-          : [baseItem];
-        await AsyncStorage.setItem(PETS_STORAGE_KEY, JSON.stringify(next));
-        router.back();
-        return;
-      }
-
-      const localOnly = await getLocalOnlyMode();
-      let createdId = baseItem.id;
-
-      if (!localOnly) {
-        const petDateTime = petDate && !Number.isNaN(petDate.getTime()) ? petDate.toISOString() : null;
-        const vaultId = await getOrCreateVaultId();
-
-        const entityRes = await createEntity({
-          variables: {
-            input: {
-              vaultId,
-              entityType: "PET",
-              displayName: input.petName,
-              dateOfBirth: petDateType === "dob" ? petDateTime : null,
-              adoptionDate: petDateType === "adoption" ? petDateTime : null,
-            },
-          },
-        });
-
-        const entityId = entityRes.data?.createEntity?.id;
-
-        if (entityId) {
-          await upsertRecord({
-            variables: {
-              input: {
-                vaultId,
-                entityId,
-                recordType: "PET_PROFILE",
-                payload: {
-                  petDateType: input.petDateType,
-                  dob: input.dob || "",
-                  adoptionDate: input.adoptionDate || "",
-                  kind: input.kind,
-                  kindOtherText: input.kindOtherText,
-                  breed: input.breed,
-                  breedOtherText: input.breedOtherText,
-                  details: input.breedOptionalText,
-                  microchipId: input.microchipId || "",
-                  emergencyInstructions: input.emergencyInstructions || "",
-                  insuranceProvider: input.insuranceProvider || "",
-                  policyNumber: input.policyNumber || "",
-                  insuranceNotes: input.insuranceNotes || "",
-                  vetContact: input.vetContact || null,
-                  vaccinations: input.vaccinations || [],
-                  serviceDocuments: input.serviceDocuments || [],
-                  medications: input.medications || [],
-                  serviceProviders: input.serviceProviders || [],
-                  checklistItems: input.checklistItems || [],
-                },
-                payloadVersion: 1,
-                source: "MANUAL",
-                privacy: "STANDARD",
-                fileIds: [],
-              },
-            },
-          });
-
-          createdId = entityId;
-        }
-      }
-
-      const next = [{ ...baseItem, id: createdId }, ...(Array.isArray(list) ? list : [])];
-      await AsyncStorage.setItem(PETS_STORAGE_KEY, JSON.stringify(next));
-      router.back();
-    } catch (e: any) {
-      Alert.alert("Save failed", e?.message ?? "Please try again.");
+    const error = validate();
+    if (error) {
+      Alert.alert("Required", error);
+      return;
     }
-  };
 
-  // Vaccinations
-  const addVaccination = () => {
-    if (!newVaccination.name.trim()) return;
-    const record: VaccinationRecord = {
-      id: `vac-${Date.now()}`,
-      name: newVaccination.name.trim(),
-      date: newVaccination.date,
-      notes: newVaccination.notes,
+    const timestamp = new Date().toISOString();
+
+    const finalFears =
+      fears.includes("Other") && fearOtherText.trim()
+        ? Array.from(new Set([...fears.filter((f) => f !== "Other"), `Other: ${fearOtherText.trim()}`]))
+        : fears;
+
+    const next: PetProfile = {
+      id: editId || `pet_${Date.now()}`,
+      profileType: "PET",
+      createdAt: timestamp,
+      updatedAt: timestamp,
+
+      petName: petName.trim(),
+      kind: kind.trim(),
+      kindOtherText: kindOtherText.trim() || undefined,
+
+      dob: dobDate ? toIsoDateOnly(dobDate) : undefined,
+      adoptionDate: adoptionDate ? toIsoDateOnly(adoptionDate) : undefined,
+
+      breed: breed.trim() || undefined,
+      breedOtherText: breedOtherText.trim() || undefined,
+      microchipId: microchipId.trim() || undefined,
+
+      ...(weightValue.trim()
+        ? { weightValue: weightValue.trim(), weightUnit }
+        : { weightValue: undefined, weightUnit: undefined }),
+
+      foodBrand: foodBrand.trim() || undefined,
+      foodType: foodType || undefined,
+      portionAmount: portionAmount.trim() || undefined,
+      portionUnit: portionAmount.trim() ? portionUnit : undefined,
+      feedingTimes: feedingTimes.map((t) => t.trim()).filter(Boolean),
+
+      treatAllowed: treatAllowed || undefined,
+      treatRulesNotes: treatRulesNotes.trim() || undefined,
+
+      pottyTimesPerDay,
+      pottyTimes: pottyTimes.map((t) => t.trim()).filter(Boolean),
+
+      leashHarnessNotes: leashHarnessNotes.trim() || undefined,
+      avoidTriggers,
+      avoidTriggersNotes: avoidTriggersNotes.trim() || undefined,
+
+      sleepLocation: sleepLocation || undefined,
+      crateRule: crateRule || undefined,
+      bedtimeRoutine: bedtimeRoutine.trim() || undefined,
+
+      fears: finalFears,
+      separationAnxietyLevel: separationAnxietyLevel || undefined,
+      separationAnxietyNotes: separationAnxietyNotes.trim() || undefined,
+
+      medications: medications
+        .map((m) => ({
+          ...m,
+          name: m.name.trim(),
+          dosage: m.dosage?.trim() || undefined,
+          adminMethod: m.adminMethod || undefined,
+          scheduleNotes: m.scheduleNotes?.trim() || undefined,
+          missedDoseNotes: m.missedDoseNotes?.trim() || undefined,
+          sideEffectsNotes: m.sideEffectsNotes?.trim() || undefined,
+        }))
+        .filter((m) => m.name),
+
+      vaccinations: vaccinations
+        .map((v) => ({
+          id: v.id,
+          name: v.name.trim(),
+          date: v.date ? toIsoDateOnly(v.date) : undefined,
+          notes: v.notes?.trim() || undefined,
+        }))
+        .filter((v) => v.name),
     };
-    setVaccinations((prev) => [...prev, record]);
-    setNewVaccination({ name: "", date: null, notes: "" });
-    setShowVaccinationModal(false);
+
+    await upsertProfile(next);
+    setSaveLabel("saved");
+    setTimeout(() => router.back(), 700);
   };
 
-  const deleteVaccination = (id: string) => {
-    Alert.alert("Delete Record", "Remove this vaccination record?", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Delete", style: "destructive", onPress: () => setVaccinations((prev) => prev.filter((v) => v.id !== id)) },
-    ]);
+  const addFeedingTime = () => {
+    setFeedingTimes((prev) => [...prev, ""]);
+    // open picker immediately for the new one
+    const idx = feedingTimes.length;
+    setTimeout(() => openTimePicker("FEED", idx, ""), 0);
   };
 
-  // Service docs
-  const addServiceDocument = () => {
-    setServiceDocuments((prev) => [...prev, { id: `svc-${Date.now()}`, type: newServiceDoc.type, expiryDate: newServiceDoc.expiryDate }]);
-    setNewServiceDoc({ type: "ESA Letter", expiryDate: null });
-    setShowServiceDocModal(false);
+  const removeFeedingTime = (idx: number) => {
+    setFeedingTimes((prev) => prev.filter((_, i) => i !== idx));
   };
 
-  const deleteServiceDocument = (id: string) => {
-    Alert.alert("Delete Document", "Remove this document?", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Delete", style: "destructive", onPress: () => setServiceDocuments((prev) => prev.filter((d) => d.id !== id)) },
-    ]);
+  const setFeedingTime = (idx: number, hhmm: string) => {
+    setFeedingTimes((prev) => prev.map((x, i) => (i === idx ? hhmm : x)));
   };
-
-  // Medications
-  const openAddMedicationModal = () => {
-    setEditingMedication(null);
-    setNewMedication({ name: "", dosage: "", frequency: "", startDate: null, endDate: null, notes: "" });
-    setShowMedicationModal(true);
-  };
-
-  const openEditMedicationModal = (m: Medication) => {
-    setEditingMedication(m);
-    setNewMedication({
-      name: m.name,
-      dosage: m.dosage,
-      frequency: m.frequency,
-      startDate: m.startDate,
-      endDate: m.endDate || null,
-      notes: m.notes || "",
-    });
-    setShowMedicationModal(true);
-  };
-
-  const saveMedication = () => {
-    if (!newMedication.name.trim()) {
-      Alert.alert("Required Field", "Please enter medication name.");
-      return;
-    }
-
-    if (editingMedication) {
-      setMedications((prev) =>
-        prev.map((m) =>
-          m.id === editingMedication.id
-            ? {
-                ...m,
-                name: newMedication.name.trim(),
-                dosage: newMedication.dosage.trim(),
-                frequency: newMedication.frequency.trim(),
-                startDate: newMedication.startDate,
-                endDate: newMedication.endDate || null,
-                notes: newMedication.notes.trim() || undefined,
-              }
-            : m
-        )
-      );
-    } else {
-      setMedications((prev) => [
-        ...prev,
-        {
-          id: `med-${Date.now()}`,
-          name: newMedication.name.trim(),
-          dosage: newMedication.dosage.trim(),
-          frequency: newMedication.frequency.trim(),
-          startDate: newMedication.startDate,
-          endDate: newMedication.endDate || null,
-          notes: newMedication.notes.trim() || undefined,
-          status: "active",
-        },
-      ]);
-    }
-
-    setShowMedicationModal(false);
-    setEditingMedication(null);
-  };
-
-  const deleteMedication = (id: string) => {
-    Alert.alert("Delete Medication", "Remove this medication?", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Delete", style: "destructive", onPress: () => setMedications((prev) => prev.filter((m) => m.id !== id)) },
-    ]);
-  };
-
-  const moveToHistory = (m: Medication) => {
-    Alert.alert("Move to History", "Move this medication to history? You can reactivate it later.", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Move", onPress: () => setMedications((prev) => prev.map((x) => (x.id === m.id ? { ...x, status: "history" } : x))) },
-    ]);
-  };
-
-  const moveToActive = (m: Medication) => {
-    setMedications((prev) => prev.map((x) => (x.id === m.id ? { ...x, status: "active" } : x)));
-  };
-
-  // Providers
-  const openAddProviderModal = () => {
-    setEditingProvider(null);
-    setNewProvider({ name: "", type: "Walker", phone: "", notes: "" });
-    setShowProviderModal(true);
-  };
-
-  const openEditProviderModal = (p: ServiceProvider) => {
-    setEditingProvider(p);
-    setNewProvider({ name: p.name, type: p.type, phone: p.phone, notes: p.notes || "" });
-    setShowProviderModal(true);
-  };
-
-  const saveProvider = () => {
-    if (!newProvider.name.trim() || !newProvider.phone.trim()) {
-      Alert.alert("Required Fields", "Please enter provider name and phone number.");
-      return;
-    }
-
-    if (editingProvider) {
-      setServiceProviders((prev) =>
-        prev.map((p) =>
-          p.id === editingProvider.id
-            ? { ...p, name: newProvider.name.trim(), type: newProvider.type, phone: newProvider.phone.trim(), notes: newProvider.notes.trim() || undefined }
-            : p
-        )
-      );
-    } else {
-      setServiceProviders((prev) => [
-        ...prev,
-        { id: `prov-${Date.now()}`, name: newProvider.name.trim(), type: newProvider.type, phone: newProvider.phone.trim(), notes: newProvider.notes.trim() || undefined },
-      ]);
-    }
-
-    setShowProviderModal(false);
-    setEditingProvider(null);
-  };
-
-  const deleteProvider = (id: string) => {
-    Alert.alert("Delete Provider", "Remove this service provider?", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Delete", style: "destructive", onPress: () => setServiceProviders((prev) => prev.filter((p) => p.id !== id)) },
-    ]);
-  };
-
-  // Checklist
-  const toggleChecklistItem = (id: string) => {
-    setChecklistItems((prev) => prev.map((item) => (item.id === id ? { ...item, isChecked: !item.isChecked } : item)));
-  };
-
-  const addCustomItem = () => {
-    if (!newItemText.trim()) return;
-    setChecklistItems((prev) => [
-      ...prev,
-      { id: `custom-${Date.now()}`, label: newItemText.trim(), isChecked: false, isSuggested: false, category: "general" },
-    ]);
-    setNewItemText("");
-    setShowAddItemModal(false);
-  };
-
-  const deleteChecklistItem = (id: string) => {
-    Alert.alert("Delete Item", "Are you sure?", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Delete", style: "destructive", onPress: () => setChecklistItems((prev) => prev.filter((item) => item.id !== id)) },
-    ]);
-  };
-
-  const headerTitle = isEditing ? "Edit Pet" : "Add Pet";
 
   return (
     <KeyboardDismiss>
       <SafeAreaView className="flex-1 bg-background">
-        <View className="px-6 py-4 flex-row items-center justify-between border-b border-border">
-          <TouchableOpacity onPress={() => router.back()} disabled={isSaving}>
-            <Text className="text-muted-foreground">Cancel</Text>
+        <View className="flex-row items-center justify-between px-6 py-4 border-b border-border">
+          <TouchableOpacity onPress={() => router.back()} className="w-10 h-10 items-center justify-center">
+            <ArrowLeft size={22} className="text-foreground" />
           </TouchableOpacity>
-          <Text className="text-lg font-bold text-foreground">{headerTitle}</Text>
-          <TouchableOpacity onPress={handleSave} disabled={isSaving}>
-            <Text className="text-primary font-semibold">{isSaving ? "Saving..." : "Save"}</Text>
+          <Text className="text-lg font-semibold text-foreground">{isEditing ? "Edit Pet" : "Add Pet"}</Text>
+          <View className="w-10" />
+        </View>
+
+        <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 180, gap: 12 }} keyboardShouldPersistTaps="handled">
+          <View className="items-center py-2">
+            <View className="w-24 h-24 rounded-full bg-muted overflow-hidden border-4 border-background items-center justify-center">
+              <PawPrint className="text-muted-foreground" size={42} />
+            </View>
+            <Text className="text-xs text-muted-foreground mt-3">Avatar optional</Text>
+          </View>
+
+          {/* OVERVIEW */}
+          <Section title="Overview" open={openOverview} onToggle={() => setOpenOverview((v) => !v)}>
+            <View>
+              <Text className="text-sm font-medium text-foreground mb-2">Pet Name</Text>
+              <TextInput
+                className="bg-background border border-border rounded-xl px-4 py-3 text-foreground"
+                value={petName}
+                onChangeText={setPetName}
+                placeholder="Enter pet name"
+                placeholderTextColor="rgb(148 163 184)"
+                returnKeyType="done"
+              />
+            </View>
+
+            <View>
+              <Text className="text-sm font-medium text-foreground mb-2">Type</Text>
+              <View className="flex-row flex-wrap gap-2">
+                {KIND_OPTIONS.map((opt) => {
+                  const active = kind === opt;
+                  return (
+                    <TouchableOpacity
+                      key={opt}
+                      onPress={() => {
+                        setKind(opt);
+                        setBreed("");
+                        setBreedOtherText("");
+                        setBreedSearch("");
+                        // reset vaccination picker search if kind changes
+                        setVaxSearch("");
+                        setVaxPickerForId(null);
+                      }}
+                      className={`px-3 py-2 rounded-full border ${active ? "bg-primary border-primary" : "bg-background border-border"}`}
+                      activeOpacity={0.85}
+                    >
+                      <Text className={active ? "text-primary-foreground text-xs font-semibold" : "text-foreground text-xs"}>{opt}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+
+            {normalizeKind(kind) === "other" ? (
+              <View>
+                <Text className="text-sm font-medium text-foreground mb-2">Specify Type</Text>
+                <TextInput
+                  className="bg-background border border-border rounded-xl px-4 py-3 text-foreground"
+                  value={kindOtherText}
+                  onChangeText={setKindOtherText}
+                  placeholder="e.g., Rabbit"
+                  placeholderTextColor="rgb(148 163 184)"
+                  returnKeyType="done"
+                />
+              </View>
+            ) : null}
+
+            {showBreedDropdown ? (
+              <View>
+                <Text className="text-sm font-medium text-foreground mb-2">Breed</Text>
+                <TouchableOpacity
+                  onPress={() => { setBreedSearch(""); setShowBreedModal(true); }}
+                  className="bg-background border border-border rounded-xl px-4 py-3 flex-row items-center justify-between"
+                  activeOpacity={0.85}
+                >
+                  <Text className={breed ? "text-foreground" : "text-muted-foreground"}>
+                    {breed || "Select breed"}
+                  </Text>
+                  <Text className="text-muted-foreground text-lg">›</Text>
+                </TouchableOpacity>
+              </View>
+            ) : null}
+
+            {normalizeKind(breed) === "other" ? (
+              <View>
+                <Text className="text-sm font-medium text-foreground mb-2">Specify Breed</Text>
+                <TextInput
+                  className="bg-background border border-border rounded-xl px-4 py-3 text-foreground"
+                  value={breedOtherText}
+                  onChangeText={setBreedOtherText}
+                  placeholder="Enter breed"
+                  placeholderTextColor="rgb(148 163 184)"
+                  returnKeyType="done"
+                />
+              </View>
+            ) : null}
+
+            {/* Weight */}
+            <View className="flex-row gap-3">
+              <View className="flex-1">
+                <Text className="text-sm font-medium text-foreground mb-2">Weight</Text>
+                <TextInput
+                  className="bg-background border border-border rounded-xl px-4 py-3 text-foreground"
+                  value={weightValue}
+                  onChangeText={setWeightValue}
+                  placeholder="e.g., 42"
+                  keyboardType="decimal-pad"
+                  placeholderTextColor="rgb(148 163 184)"
+                  returnKeyType="done"
+                />
+              </View>
+
+              <View className="w-28">
+                <Text className="text-sm font-medium text-foreground mb-2">Unit</Text>
+                <View className="flex-row gap-2">
+                  {(["lb", "kg"] as const).map((u) => {
+                    const active = weightUnit === u;
+                    return (
+                      <TouchableOpacity
+                        key={u}
+                        onPress={() => setWeightUnit(u)}
+                        className={`flex-1 rounded-xl border px-3 py-3 items-center ${active ? "bg-primary border-primary" : "bg-background border-border"}`}
+                        activeOpacity={0.85}
+                      >
+                        <Text className={active ? "text-primary-foreground font-semibold" : "text-foreground"}>{u}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+            </View>
+
+            {/* Date toggle row (single row) */}
+            <View>
+              <Text className="text-sm font-medium text-foreground mb-2">Date (optional)</Text>
+
+              <View className="flex-row gap-2 mb-2">
+                {(["DOB", "ADOPTION"] as const).map((m) => {
+                  const active = dateMode === m;
+                  return (
+                    <TouchableOpacity
+                      key={m}
+                      onPress={() => setDateMode(m)}
+                      className={`px-3 py-2 rounded-full border ${active ? "bg-primary border-primary" : "bg-card border-border"}`}
+                      activeOpacity={0.85}
+                    >
+                      <Text className={active ? "text-primary-foreground text-xs font-semibold" : "text-foreground text-xs"}>
+                        {m === "DOB" ? "Date of Birth" : "Adoption Date"}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              <TouchableOpacity
+                onPress={() => setShowDatePicker(true)}
+                className="bg-background border border-border rounded-xl px-4 py-3 flex-row items-center justify-between"
+                activeOpacity={0.85}
+              >
+                <Text className={(dateMode === "DOB" ? dobDate : adoptionDate) ? "text-foreground" : "text-muted-foreground"}>
+                  {formatDateLabel(dateMode === "DOB" ? dobDate : adoptionDate, "Select date")}
+                </Text>
+                <Calendar size={18} className="text-muted-foreground" />
+              </TouchableOpacity>
+
+              {(dateMode === "DOB" ? dobDate : adoptionDate) ? (
+                <TouchableOpacity
+                  onPress={() => (dateMode === "DOB" ? setDobDate(null) : setAdoptionDate(null))}
+                  className="mt-2"
+                  activeOpacity={0.85}
+                >
+                  <Text className="text-xs text-primary font-semibold">Clear {dateMode === "DOB" ? "DOB" : "Adoption Date"}</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+
+            <View>
+              <Text className="text-sm font-medium text-foreground mb-2">Microchip ID (optional)</Text>
+              <TextInput
+                className="bg-background border border-border rounded-xl px-4 py-3 text-foreground"
+                value={microchipId}
+                onChangeText={setMicrochipId}
+                placeholder="Enter microchip ID"
+                placeholderTextColor="rgb(148 163 184)"
+                returnKeyType="done"
+              />
+            </View>
+          </Section>
+
+          {/* DAILY CARE */}
+          <Section title="Daily Care" open={openDailyCare} onToggle={() => setOpenDailyCare((v) => !v)}>
+            <View>
+              <Text className="text-sm font-medium text-foreground mb-2">Food brand</Text>
+              <TextInput
+                className="bg-background border border-border rounded-xl px-4 py-3 text-foreground"
+                value={foodBrand}
+                onChangeText={setFoodBrand}
+                placeholder="e.g., Purina Pro Plan"
+                placeholderTextColor="rgb(148 163 184)"
+                returnKeyType="done"
+              />
+            </View>
+
+            <View>
+              <Text className="text-sm font-medium text-foreground mb-2">Food type</Text>
+              <PillSingleSelect options={PET_FOOD_TYPE_OPTIONS} value={foodType} onChange={setFoodType} />
+            </View>
+
+            <View className="flex-row gap-3">
+              <View className="flex-1">
+                <Text className="text-sm font-medium text-foreground mb-2">Portion</Text>
+                <TextInput
+                  className="bg-background border border-border rounded-xl px-4 py-3 text-foreground"
+                  value={portionAmount}
+                  onChangeText={setPortionAmount}
+                  placeholder="e.g., 1.5"
+                  keyboardType="decimal-pad"
+                  placeholderTextColor="rgb(148 163 184)"
+                  returnKeyType="done"
+                />
+              </View>
+              <View className="w-28">
+                <Text className="text-sm font-medium text-foreground mb-2">Unit</Text>
+                <PillSingleSelect options={PET_PORTION_UNIT_OPTIONS} value={portionUnit} onChange={(v) => setPortionUnit(v as any)} />
+              </View>
+            </View>
+
+            {/* Feeding times (time-only picker) */}
+            <View>
+              <Text className="text-sm font-medium text-foreground mb-2">Feeding schedule</Text>
+
+              <View className="gap-2">
+                {feedingTimes.length === 0 ? (
+                  <Text className="text-xs text-muted-foreground">No feeding times added yet.</Text>
+                ) : null}
+
+                {feedingTimes.map((t, idx) => (
+                  <View key={`${idx}_${t}`} className="flex-row gap-2 items-center">
+                    <TouchableOpacity
+                      onPress={() => openTimePicker("FEED", idx, t)}
+                      className="flex-1 bg-background border border-border rounded-xl px-4 py-3 flex-row items-center justify-between"
+                      activeOpacity={0.85}
+                    >
+                      <Text className={t ? "text-foreground" : "text-muted-foreground"}>
+                        {t ? formatHHmmForDisplay(t) : `Select time ${idx + 1}`}
+                      </Text>
+                      <Clock size={18} className="text-muted-foreground" />
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      onPress={() => removeFeedingTime(idx)}
+                      className="w-10 h-10 rounded-xl border border-border items-center justify-center"
+                      activeOpacity={0.85}
+                    >
+                      <Trash2 size={16} className="text-muted-foreground" />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+
+                <TouchableOpacity onPress={addFeedingTime} className="flex-row items-center gap-2 px-3 py-3 rounded-xl border border-border" activeOpacity={0.85}>
+                  <Plus size={16} className="text-muted-foreground" />
+                  <Text className="text-foreground font-semibold">Add feeding time</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <View>
+              <Text className="text-sm font-medium text-foreground mb-2">Treats allowed?</Text>
+              <PillSingleSelect options={PET_TREAT_ALLOWED_OPTIONS} value={treatAllowed} onChange={setTreatAllowed} />
+            </View>
+
+            <View>
+              <Text className="text-sm font-medium text-foreground mb-2">Treat rules (notes)</Text>
+              <TextInput
+                className="bg-background border border-border rounded-xl px-4 py-3 text-foreground"
+                value={treatRulesNotes}
+                onChangeText={setTreatRulesNotes}
+                placeholder="e.g., max 2/day, only after potty"
+                placeholderTextColor="rgb(148 163 184)"
+                multiline
+                returnKeyType="done"
+                submitBehavior="blurAndSubmit"
+              />
+            </View>
+          </Section>
+
+          {/* BATHROOM / WALK */}
+          <Section title="Bathroom / Walk" open={openBathroom} onToggle={() => setOpenBathroom((v) => !v)}>
+            <View>
+              <Text className="text-sm font-medium text-foreground mb-2">How many times per day?</Text>
+              <PillSingleSelect options={["1", "2", "3", "4", "5", "6"] as const} value={pottyTimesPerDay} onChange={setPottyTimesPerDay} />
+            </View>
+
+            {/* Potty times (time-only picker) */}
+            <View>
+              <Text className="text-sm font-medium text-foreground mb-2">Times</Text>
+              <View className="gap-2">
+                {pottyTimes.map((t, idx) => (
+                  <TouchableOpacity
+                    key={idx}
+                    onPress={() => openTimePicker("POTTY", idx, t)}
+                    className="bg-background border border-border rounded-xl px-4 py-3 flex-row items-center justify-between"
+                    activeOpacity={0.85}
+                  >
+                    <Text className={t ? "text-foreground" : "text-muted-foreground"}>
+                      {t ? formatHHmmForDisplay(t) : `Select time ${idx + 1}`}
+                    </Text>
+                    <Clock size={18} className="text-muted-foreground" />
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            <View>
+              <Text className="text-sm font-medium text-foreground mb-2">Leash / harness details</Text>
+              <TextInput
+                className="bg-background border border-border rounded-xl px-4 py-3 text-foreground"
+                value={leashHarnessNotes}
+                onChangeText={setLeashHarnessNotes}
+                placeholder="e.g., Front-clip harness, no retractable leash"
+                placeholderTextColor="rgb(148 163 184)"
+                multiline
+                returnKeyType="done"
+                submitBehavior="blurAndSubmit"
+              />
+            </View>
+
+            <View>
+              <Text className="text-sm font-medium text-foreground mb-2">Avoid triggers</Text>
+              <PillMultiSelect options={PET_AVOID_TRIGGER_OPTIONS} value={avoidTriggers} onChange={setAvoidTriggers} />
+              <TextInput
+                className="bg-background border border-border rounded-xl px-4 py-3 text-foreground mt-3"
+                value={avoidTriggersNotes}
+                onChangeText={setAvoidTriggersNotes}
+                placeholder='Extra notes (e.g., "reactive to huskies")'
+                placeholderTextColor="rgb(148 163 184)"
+                multiline
+                returnKeyType="done"
+                submitBehavior="blurAndSubmit"
+              />
+            </View>
+          </Section>
+
+          {/* SLEEP */}
+          <Section title="Sleep" open={openSleep} onToggle={() => setOpenSleep((v) => !v)}>
+            <View>
+              <Text className="text-sm font-medium text-foreground mb-2">Where do they sleep?</Text>
+              <PillSingleSelect options={PET_SLEEP_LOCATION_OPTIONS} value={sleepLocation} onChange={setSleepLocation} />
+            </View>
+
+            <View>
+              <Text className="text-sm font-medium text-foreground mb-2">Crate rules</Text>
+              <PillSingleSelect options={PET_CRATE_RULE_OPTIONS} value={crateRule} onChange={setCrateRule} />
+            </View>
+
+            <View>
+              <Text className="text-sm font-medium text-foreground mb-2">Bedtime routine</Text>
+              <TextInput
+                className="bg-background border border-border rounded-xl px-4 py-3 text-foreground"
+                value={bedtimeRoutine}
+                onChangeText={setBedtimeRoutine}
+                placeholder="e.g., last potty 9pm, then crate + white noise"
+                placeholderTextColor="rgb(148 163 184)"
+                multiline
+                returnKeyType="done"
+                submitBehavior="blurAndSubmit"
+              />
+            </View>
+          </Section>
+
+          {/* BEHAVIOR */}
+          <Section title="Behavior & Safety" open={openBehavior} onToggle={() => setOpenBehavior((v) => !v)}>
+            <View>
+              <Text className="text-sm font-medium text-foreground mb-2">Fears (select all that apply)</Text>
+              <PillMultiSelect options={PET_FEAR_OPTIONS} value={fears} onChange={setFears} />
+              {fears.includes("Other") ? (
+                <TextInput
+                  className="bg-background border border-border rounded-xl px-4 py-3 text-foreground mt-3"
+                  value={fearOtherText}
+                  onChangeText={setFearOtherText}
+                  placeholder="Describe other fear"
+                  placeholderTextColor="rgb(148 163 184)"
+                  returnKeyType="done"
+                />
+              ) : null}
+            </View>
+
+            <View>
+              <Text className="text-sm font-medium text-foreground mb-2">Separation anxiety</Text>
+              <PillSingleSelect options={PET_SEPARATION_ANXIETY_LEVEL_OPTIONS} value={separationAnxietyLevel} onChange={setSeparationAnxietyLevel} />
+              <TextInput
+                className="bg-background border border-border rounded-xl px-4 py-3 text-foreground mt-3"
+                value={separationAnxietyNotes}
+                onChangeText={setSeparationAnxietyNotes}
+                placeholder="Notes (optional)"
+                placeholderTextColor="rgb(148 163 184)"
+                multiline
+                returnKeyType="done"
+                submitBehavior="blurAndSubmit"
+              />
+            </View>
+          </Section>
+
+          {/* MEDS */}
+          <Section title="Medications & Supplements" open={openMeds} onToggle={() => setOpenMeds((v) => !v)}>
+            <View className="gap-3">
+              {medications.map((m, idx) => (
+                <View key={m.id} className="rounded-2xl border border-border bg-background p-3 gap-2">
+                  <View className="flex-row items-center justify-between">
+                    <Text className="text-foreground font-semibold">Medication {idx + 1}</Text>
+                    <TouchableOpacity
+                      onPress={() => setMedications((prev) => prev.filter((x) => x.id !== m.id))}
+                      className="w-10 h-10 rounded-xl border border-border items-center justify-center"
+                      activeOpacity={0.85}
+                    >
+                      <Trash2 size={16} className="text-muted-foreground" />
+                    </TouchableOpacity>
+                  </View>
+
+                  <TextInput
+                    className="bg-card border border-border rounded-xl px-4 py-3 text-foreground"
+                    value={m.name}
+                    onChangeText={(v) => setMedications((prev) => prev.map((x) => (x.id === m.id ? { ...x, name: v } : x)))}
+                    placeholder="Name (required)"
+                    placeholderTextColor="rgb(148 163 184)"
+                    returnKeyType="done"
+                  />
+                  <TextInput
+                    className="bg-card border border-border rounded-xl px-4 py-3 text-foreground"
+                    value={m.dosage || ""}
+                    onChangeText={(v) => setMedications((prev) => prev.map((x) => (x.id === m.id ? { ...x, dosage: v } : x)))}
+                    placeholder="Exact dosage (e.g., 10mg)"
+                    placeholderTextColor="rgb(148 163 184)"
+                    returnKeyType="done"
+                  />
+
+                  <Text className="text-sm font-medium text-foreground mt-1">How administered</Text>
+                  <PillSingleSelect
+                    options={PET_MED_ADMIN_METHOD_OPTIONS}
+                    value={m.adminMethod || ""}
+                    onChange={(v) => setMedications((prev) => prev.map((x) => (x.id === m.id ? { ...x, adminMethod: v } : x)))}
+                  />
+
+                  <TextInput
+                    className="bg-card border border-border rounded-xl px-4 py-3 text-foreground"
+                    value={m.scheduleNotes || ""}
+                    onChangeText={(v) => setMedications((prev) => prev.map((x) => (x.id === m.id ? { ...x, scheduleNotes: v } : x)))}
+                    placeholder="Schedule / notes (e.g., with dinner)"
+                    placeholderTextColor="rgb(148 163 184)"
+                    multiline
+                    returnKeyType="done"
+                    submitBehavior="blurAndSubmit"
+                  />
+                  <TextInput
+                    className="bg-card border border-border rounded-xl px-4 py-3 text-foreground"
+                    value={m.missedDoseNotes || ""}
+                    onChangeText={(v) => setMedications((prev) => prev.map((x) => (x.id === m.id ? { ...x, missedDoseNotes: v } : x)))}
+                    placeholder="If missed dose…"
+                    placeholderTextColor="rgb(148 163 184)"
+                    multiline
+                    returnKeyType="done"
+                    submitBehavior="blurAndSubmit"
+                  />
+                  <TextInput
+                    className="bg-card border border-border rounded-xl px-4 py-3 text-foreground"
+                    value={m.sideEffectsNotes || ""}
+                    onChangeText={(v) => setMedications((prev) => prev.map((x) => (x.id === m.id ? { ...x, sideEffectsNotes: v } : x)))}
+                    placeholder="Side effects to watch for"
+                    placeholderTextColor="rgb(148 163 184)"
+                    multiline
+                    returnKeyType="done"
+                    submitBehavior="blurAndSubmit"
+                  />
+                </View>
+              ))}
+
+              <TouchableOpacity
+                onPress={() =>
+                  setMedications((prev) => [
+                    ...prev,
+                    { id: `med_${Date.now()}`, name: "", dosage: "", adminMethod: "", scheduleNotes: "" },
+                  ])
+                }
+                className="flex-row items-center gap-2 px-3 py-3 rounded-xl border border-border"
+                activeOpacity={0.85}
+              >
+                <Plus size={16} className="text-muted-foreground" />
+                <Text className="text-foreground font-semibold">Add medication</Text>
+              </TouchableOpacity>
+            </View>
+          </Section>
+
+          {/* VACCINATIONS */}
+          <Section title="Vaccinations" open={openVax} onToggle={() => setOpenVax((v) => !v)}>
+            {!isDog && !isCat ? (
+              <Text className="text-xs text-muted-foreground">Select Dog or Cat to see recommended vaccination options.</Text>
+            ) : null}
+
+            <View className="gap-3">
+              {vaccinations.map((v, idx) => (
+                <View key={v.id} className="rounded-2xl border border-border bg-background p-3 gap-2">
+                  <View className="flex-row items-center justify-between">
+                    <Text className="text-foreground font-semibold">Vaccine {idx + 1}</Text>
+                    <TouchableOpacity
+                      onPress={() => setVaccinations((prev) => prev.filter((x) => x.id !== v.id))}
+                      className="w-10 h-10 rounded-xl border border-border items-center justify-center"
+                      activeOpacity={0.85}
+                    >
+                      <Trash2 size={16} className="text-muted-foreground" />
+                    </TouchableOpacity>
+                  </View>
+
+                  <TouchableOpacity
+                    onPress={() => {
+                      setVaxSearch("");
+                      setVaxPickerForId(v.id);
+                      setShowVaxModal(true);
+                    }}
+                    className="bg-card border border-border rounded-xl px-4 py-3"
+                    activeOpacity={0.85}
+                  >
+                    <Text className={v.name ? "text-foreground" : "text-muted-foreground"}>{v.name || "Select vaccine"}</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    onPress={() => {
+                      setVaxDateForId(v.id);
+                      setShowVaxDatePicker(true);
+                    }}
+                    className="bg-card border border-border rounded-xl px-4 py-3 flex-row items-center justify-between"
+                    activeOpacity={0.85}
+                  >
+                    <Text className={v.date ? "text-foreground" : "text-muted-foreground"}>{formatDateLabel(v.date, "Select date (optional)")}</Text>
+                    <Calendar size={18} className="text-muted-foreground" />
+                  </TouchableOpacity>
+
+                  <TextInput
+                    className="bg-card border border-border rounded-xl px-4 py-3 text-foreground"
+                    value={v.notes || ""}
+                    onChangeText={(val) => setVaccinations((prev) => prev.map((x) => (x.id === v.id ? { ...x, notes: val } : x)))}
+                    placeholder="Notes (optional)"
+                    placeholderTextColor="rgb(148 163 184)"
+                    multiline
+                    returnKeyType="done"
+                    submitBehavior="blurAndSubmit"
+                  />
+                </View>
+              ))}
+
+              <TouchableOpacity
+                onPress={() =>
+                  setVaccinations((prev) => [
+                    ...prev,
+                    { id: `vax_${Date.now()}`, name: "", date: null, notes: "" },
+                  ])
+                }
+                className="flex-row items-center gap-2 px-3 py-3 rounded-xl border border-border"
+                activeOpacity={0.85}
+              >
+                <Plus size={16} className="text-muted-foreground" />
+                <Text className="text-foreground font-semibold">Add vaccination</Text>
+              </TouchableOpacity>
+            </View>
+
+          </Section>
+
+          {/* ACTIONS */}
+          <View className="mt-2">
+            <TouchableOpacity onPress={() => router.back()} className="border border-border rounded-xl py-4 items-center" activeOpacity={0.85}>
+              <Text className="text-foreground font-semibold">Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+
+        {/* Sticky Save button */}
+        <View
+          className="absolute bottom-0 left-0 right-0 px-6 pb-8 pt-3 bg-background border-t border-border"
+          pointerEvents="box-none"
+        >
+          <TouchableOpacity
+            onPress={handleSave}
+            className={`rounded-xl py-4 items-center ${saveLabel === "saved" ? "bg-green-500" : "bg-primary"}`}
+            activeOpacity={0.85}
+          >
+            <Text className="text-primary-foreground font-semibold text-base">
+              {saveLabel === "saved" ? "Saved ✓" : isEditing ? "Save Changes" : "Save Pet"}
+            </Text>
           </TouchableOpacity>
         </View>
 
-        <ScrollView contentContainerStyle={{ padding: 24, paddingBottom: 128 }} keyboardShouldPersistTaps="handled">
-          <AccordionSection
-            title="Basics"
-            icon={<PawPrint size={20} className="text-primary" />}
-            isExpanded={expandedSections.has("basics")}
-            onToggle={() => toggleSection("basics")}
-          >
-            <View className="gap-4">
-              <View>
-                <Text className="text-sm font-medium text-foreground mb-2">Pet Name *</Text>
-                <TextInput
-                  className="bg-card border border-border rounded-xl px-4 py-3 text-foreground text-base"
-                  placeholder="Enter pet name"
-                  placeholderTextColor="rgb(113 113 122)"
-                  value={petName}
-                  onChangeText={setPetName}
-                />
-              </View>
-
-              <CustomSelect label="Kind" value={kind} options={[...KIND_OPTIONS]} onSelect={handleSelectKind} placeholder="Select kind" />
-
-              {showKindOther && (
-                <View>
-                  <Text className="text-sm font-medium text-foreground mb-2">Specify Kind *</Text>
-                  <TextInput
-                    className="bg-card border border-border rounded-xl px-4 py-3 text-foreground text-base"
-                    placeholder="Enter kind"
-                    placeholderTextColor="rgb(113 113 122)"
-                    value={kindOtherText}
-                    onChangeText={setKindOtherText}
-                  />
-                </View>
-              )}
-
-              {showBreedDropdown && (
-                <CustomSelect
-                  label={isDog ? "Dog Breed" : "Cat Breed"}
-                  value={breed}
-                  options={breedOptions}
-                  onSelect={setBreed}
-                  placeholder={isDog ? "Select dog breed" : "Select cat breed"}
-                />
-              )}
-
-              <View className="gap-2">
-                <Text className="text-sm font-medium text-foreground">Date *</Text>
-
-                <View className="flex-row gap-2">
-                  <TouchableOpacity
-                    onPress={() => setPetDateType("dob")}
-                    className={`px-3 py-1.5 rounded-full border ${petDateType === "dob" ? "bg-primary border-primary" : "bg-card border-border"}`}
-                    activeOpacity={0.9}
-                  >
-                    <Text className={`text-xs ${petDateType === "dob" ? "text-primary-foreground" : "text-foreground"}`}>Date of Birth</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    onPress={() => setPetDateType("adoption")}
-                    className={`px-3 py-1.5 rounded-full border ${petDateType === "adoption" ? "bg-primary border-primary" : "bg-card border-border"}`}
-                    activeOpacity={0.9}
-                  >
-                    <Text className={`text-xs ${petDateType === "adoption" ? "text-primary-foreground" : "text-foreground"}`}>Adoption Date</Text>
-                  </TouchableOpacity>
-                </View>
-
-                <TouchableOpacity
-                  onPress={() =>
-                    openDatePicker(
-                      petDateType === "adoption" ? "Adoption Date" : "Date of Birth",
-                      petDate,
-                      (d) => setPetDate(d)
-                    )
-                  }
-                  className="bg-card border border-border rounded-xl px-4 py-3 flex-row items-center justify-between"
-                  activeOpacity={0.85}
-                >
-                  <Text className={petDate ? "text-foreground" : "text-muted-foreground"}>
-                    {formatDateLabel(petDate, petDateType === "adoption" ? "Select adoption date" : "Select date of birth")}
-                  </Text>
-                  <Calendar size={18} className="text-muted-foreground" />
-                </TouchableOpacity>
-              </View>
-
-              {showBreedOtherText && (
-                <View>
-                  <Text className="text-sm font-medium text-foreground mb-2">Specify Breed *</Text>
-                  <TextInput
-                    className="bg-card border border-border rounded-xl px-4 py-3 text-foreground text-base"
-                    placeholder="Enter breed"
-                    placeholderTextColor="rgb(113 113 122)"
-                    value={breedOtherText}
-                    onChangeText={setBreedOtherText}
-                  />
-                </View>
-              )}
-
-              {showSpecificsField && (
-                <View>
-                  <Text className="text-sm font-medium text-foreground mb-2">Details (optional)</Text>
-                  <TextInput
-                    className="bg-card border border-border rounded-xl px-4 py-3 text-foreground text-base"
-                    placeholder="Add any details"
-                    placeholderTextColor="rgb(113 113 122)"
-                    value={breedOptionalText}
-                    onChangeText={setBreedOptionalText}
-                  />
-                </View>
-              )}
-            </View>
-          </AccordionSection>
-
-          <AccordionSection
-            title="Vet & Microchip"
-            icon={<Phone size={20} className="text-primary" />}
-            isExpanded={expandedSections.has("vet")}
-            onToggle={() => toggleSection("vet")}
-          >
-            <View className="gap-4">
-              <View>
-                <Text className="text-sm font-medium text-foreground mb-2">Vet Name</Text>
-                <TextInput
-                  className="bg-card border border-border rounded-xl px-4 py-3 text-foreground text-base"
-                  placeholder="Enter vet name"
-                  placeholderTextColor="rgb(113 113 122)"
-                  value={vetContact?.name || ""}
-                  onChangeText={(text) =>
-                    setVetContact((prev) => ({
-                      name: text,
-                      clinicName: prev?.clinicName || "",
-                      phone: prev?.phone || "",
-                    }))
-                  }
-                />
-              </View>
-
-              <View>
-                <Text className="text-sm font-medium text-foreground mb-2">Clinic / Practice Name</Text>
-                <TextInput
-                  className="bg-card border border-border rounded-xl px-4 py-3 text-foreground text-base"
-                  placeholder="Enter clinic name"
-                  placeholderTextColor="rgb(113 113 122)"
-                  value={vetContact?.clinicName || ""}
-                  onChangeText={(text) =>
-                    setVetContact((prev) => ({
-                      name: prev?.name || "",
-                      clinicName: text,
-                      phone: prev?.phone || "",
-                    }))
-                  }
-                />
-              </View>
-
-              <View>
-                <Text className="text-sm font-medium text-foreground mb-2">Vet Phone</Text>
-                <TextInput
-                  className="bg-card border border-border rounded-xl px-4 py-3 text-foreground text-base"
-                  placeholder="(555) 000-0000"
-                  placeholderTextColor="rgb(113 113 122)"
-                  value={vetContact?.phone || ""}
-                  onChangeText={(text) =>
-                    setVetContact((prev) => ({
-                      name: prev?.name || "",
-                      clinicName: prev?.clinicName || "",
-                      phone: text,
-                    }))
-                  }
-                  keyboardType="phone-pad"
-                />
-              </View>
-
-              <View>
-                <Text className="text-sm font-medium text-foreground mb-2">Microchip ID</Text>
-                <TextInput
-                  className="bg-card border border-border rounded-xl px-4 py-3 text-foreground text-base"
-                  placeholder="Enter microchip ID"
-                  placeholderTextColor="rgb(113 113 122)"
-                  value={microchipId}
-                  onChangeText={setMicrochipId}
-                />
-              </View>
-            </View>
-          </AccordionSection>
-
-          <AccordionSection
-            title="Records & Uploads"
-            icon={<FileText size={20} className="text-primary" />}
-            isExpanded={expandedSections.has("records")}
-            onToggle={() => toggleSection("records")}
-          >
-            <View className="gap-5">
-              <View>
-                <View className="flex-row items-center justify-between mb-2">
-                  <Text className="text-sm font-semibold text-foreground">Vaccinations</Text>
-                  <TouchableOpacity onPress={() => setShowVaccinationModal(true)} className="flex-row items-center gap-1">
-                    <Plus size={16} className="text-primary" />
-                    <Text className="text-primary font-medium">Add</Text>
-                  </TouchableOpacity>
-                </View>
-
-                {vaccinations.length === 0 ? (
-                  <Text className="text-xs text-muted-foreground">No vaccination records yet.</Text>
-                ) : (
-                  vaccinations.map((v) => (
-                    <View key={v.id} className="bg-muted/50 border border-border rounded-xl p-3 mb-2">
-                      <View className="flex-row items-center justify-between">
-                        <Text className="text-foreground font-medium">{v.name}</Text>
-                        <TouchableOpacity onPress={() => deleteVaccination(v.id)}>
-                          <Trash size={16} className="text-muted-foreground" />
-                        </TouchableOpacity>
-                      </View>
-                      <Text className="text-xs text-muted-foreground">Date: {formatDateLabel(v.date, "Not set")}</Text>
-                      {!!v.notes && <Text className="text-xs text-muted-foreground mt-1">{v.notes}</Text>}
-                    </View>
-                  ))
-                )}
-              </View>
-
-              <View>
-                <View className="flex-row items-center justify-between mb-2">
-                  <Text className="text-sm font-semibold text-foreground">Service Documents</Text>
-                  <TouchableOpacity onPress={() => setShowServiceDocModal(true)} className="flex-row items-center gap-1">
-                    <Plus size={16} className="text-primary" />
-                    <Text className="text-primary font-medium">Add</Text>
-                  </TouchableOpacity>
-                </View>
-
-                {serviceDocuments.length === 0 ? (
-                  <Text className="text-xs text-muted-foreground">No service documents yet.</Text>
-                ) : (
-                  serviceDocuments.map((d) => (
-                    <View key={d.id} className="bg-muted/50 border border-border rounded-xl p-3 mb-2">
-                      <View className="flex-row items-center justify-between">
-                        <Text className="text-foreground font-medium">{d.type}</Text>
-                        <TouchableOpacity onPress={() => deleteServiceDocument(d.id)}>
-                          <Trash size={16} className="text-muted-foreground" />
-                        </TouchableOpacity>
-                      </View>
-                      <Text className="text-xs text-muted-foreground">Expiry: {formatDateLabel(d.expiryDate, "Not set")}</Text>
-                    </View>
-                  ))
-                )}
-              </View>
-            </View>
-          </AccordionSection>
-
-          <AccordionSection
-            title="Medications"
-            icon={<Pill size={20} className="text-primary" />}
-            isExpanded={expandedSections.has("medications")}
-            onToggle={() => toggleSection("medications")}
-          >
-            <View className="gap-4">
-              <View className="flex-row gap-2">
-                <TouchableOpacity
-                  onPress={() => setMedicationTab("active")}
-                  className={`px-3 py-1.5 rounded-full border ${medicationTab === "active" ? "bg-primary border-primary" : "bg-card border-border"}`}
-                >
-                  <Text className={`text-xs ${medicationTab === "active" ? "text-primary-foreground" : "text-foreground"}`}>Active</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  onPress={() => setMedicationTab("history")}
-                  className={`px-3 py-1.5 rounded-full border ${medicationTab === "history" ? "bg-primary border-primary" : "bg-card border-border"}`}
-                >
-                  <Text className={`text-xs ${medicationTab === "history" ? "text-primary-foreground" : "text-foreground"}`}>History</Text>
-                </TouchableOpacity>
-
-                <View className="flex-1" />
-                <TouchableOpacity onPress={openAddMedicationModal} className="flex-row items-center gap-1">
-                  <Plus size={16} className="text-primary" />
-                  <Text className="text-primary font-medium">Add</Text>
-                </TouchableOpacity>
-              </View>
-
-              {medications.filter((m) => m.status === medicationTab).map((m) => (
-                <View key={m.id} className="bg-muted/50 border border-border rounded-xl p-3">
-                  <View className="flex-row items-center justify-between">
-                    <Text className="text-foreground font-medium">{m.name}</Text>
-                    <View className="flex-row items-center gap-3">
-                      <TouchableOpacity onPress={() => openEditMedicationModal(m)}>
-                        <Edit size={16} className="text-muted-foreground" />
-                      </TouchableOpacity>
-                      <TouchableOpacity onPress={() => deleteMedication(m.id)}>
-                        <Trash size={16} className="text-muted-foreground" />
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-
-                  <Text className="text-xs text-muted-foreground">{m.dosage} • {m.frequency}</Text>
-                  <Text className="text-xs text-muted-foreground">{formatDateLabel(m.startDate, "Start date not set")}</Text>
-
-                  {m.status === "active" ? (
-                    <TouchableOpacity onPress={() => moveToHistory(m)} className="mt-2 flex-row items-center gap-1">
-                      <Archive size={14} className="text-muted-foreground" />
-                      <Text className="text-xs text-muted-foreground">Move to history</Text>
-                    </TouchableOpacity>
-                  ) : (
-                    <TouchableOpacity onPress={() => moveToActive(m)} className="mt-2 flex-row items-center gap-1">
-                      <Clock size={14} className="text-muted-foreground" />
-                      <Text className="text-xs text-muted-foreground">Move to active</Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-              ))}
-            </View>
-          </AccordionSection>
-
-          <AccordionSection
-            title="Service Providers"
-            icon={<Shield size={20} className="text-primary" />}
-            isExpanded={expandedSections.has("providers")}
-            onToggle={() => toggleSection("providers")}
-          >
-            <View className="gap-3">
-              <View className="flex-row items-center justify-between mb-1">
-                <Text className="text-sm font-semibold text-foreground">Providers</Text>
-                <TouchableOpacity onPress={openAddProviderModal} className="flex-row items-center gap-1">
-                  <Plus size={16} className="text-primary" />
-                  <Text className="text-primary font-medium">Add</Text>
-                </TouchableOpacity>
-              </View>
-
-              {serviceProviders.map((p) => (
-                <View key={p.id} className="bg-muted/50 border border-border rounded-xl p-3">
-                  <View className="flex-row items-center justify-between">
-                    <View>
-                      <Text className="text-foreground font-medium">{p.name}</Text>
-                      <Text className="text-xs text-muted-foreground">{p.type}</Text>
-                    </View>
-                    <View className="flex-row items-center gap-3">
-                      <TouchableOpacity onPress={() => openEditProviderModal(p)}>
-                        <Edit size={16} className="text-muted-foreground" />
-                      </TouchableOpacity>
-                      <TouchableOpacity onPress={() => deleteProvider(p.id)}>
-                        <Trash size={16} className="text-muted-foreground" />
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                  <Text className="text-xs text-muted-foreground mt-1">{p.phone}</Text>
-                  {!!p.notes && <Text className="text-xs text-muted-foreground mt-1">{p.notes}</Text>}
-                </View>
-              ))}
-            </View>
-          </AccordionSection>
-
-          <AccordionSection
-            title="Insurance"
-            icon={<Shield size={20} className="text-primary" />}
-            isExpanded={expandedSections.has("insurance")}
-            onToggle={() => toggleSection("insurance")}
-          >
-            <View className="gap-4">
-              <View>
-                <Text className="text-sm font-medium text-foreground mb-2">Provider</Text>
-                <TextInput
-                  className="bg-card border border-border rounded-xl px-4 py-3 text-foreground text-base"
-                  placeholder="Insurance provider"
-                  placeholderTextColor="rgb(113 113 122)"
-                  value={insuranceProvider}
-                  onChangeText={setInsuranceProvider}
-                />
-              </View>
-
-              <View>
-                <Text className="text-sm font-medium text-foreground mb-2">Policy Number</Text>
-                <TextInput
-                  className="bg-card border border-border rounded-xl px-4 py-3 text-foreground text-base"
-                  placeholder="Policy number"
-                  placeholderTextColor="rgb(113 113 122)"
-                  value={policyNumber}
-                  onChangeText={setPolicyNumber}
-                />
-              </View>
-
-              <View>
-                <Text className="text-sm font-medium text-foreground mb-2">Notes</Text>
-                <TextInput
-                  className="bg-card border border-border rounded-xl px-4 py-3 text-foreground text-base"
-                  placeholder="Additional notes"
-                  placeholderTextColor="rgb(113 113 122)"
-                  value={insuranceNotes}
-                  onChangeText={setInsuranceNotes}
-                  multiline
-                />
-              </View>
-            </View>
-          </AccordionSection>
-
-          <AccordionSection
-            title="Emergency Instructions"
-            icon={<AlertCircle size={20} className="text-primary" />}
-            isExpanded={expandedSections.has("emergency")}
-            onToggle={() => toggleSection("emergency")}
-          >
-            <TextInput
-              className="bg-card border border-border rounded-xl px-4 py-3 text-foreground text-base"
-              placeholder="Add emergency instructions"
-              placeholderTextColor="rgb(113 113 122)"
-              value={emergencyInstructions}
-              onChangeText={setEmergencyInstructions}
-              multiline
-            />
-          </AccordionSection>
-
-          <AccordionSection
-            title="Checklist"
-            icon={<Check size={20} className="text-primary" />}
-            isExpanded={expandedSections.has("checklist")}
-            onToggle={() => toggleSection("checklist")}
-          >
-            <View className="gap-3">
-              {checklistItems.map((item) => (
-                <View key={item.id} className="flex-row items-center justify-between">
-                  <TouchableOpacity onPress={() => toggleChecklistItem(item.id)} className="flex-row items-center gap-3">
-                    <View className={`w-5 h-5 rounded border ${item.isChecked ? "bg-primary border-primary" : "border-border"}`} />
-                    <Text className={`text-sm ${item.isChecked ? "text-foreground" : "text-muted-foreground"}`}>{item.label}</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity onPress={() => deleteChecklistItem(item.id)}>
-                    <Trash size={14} className="text-muted-foreground" />
-                  </TouchableOpacity>
-                </View>
-              ))}
-
-              <TouchableOpacity onPress={() => setShowAddItemModal(true)} className="flex-row items-center gap-2 mt-2">
-                <Plus size={16} className="text-primary" />
-                <Text className="text-primary font-medium">Add custom item</Text>
-              </TouchableOpacity>
-            </View>
-          </AccordionSection>
-        </ScrollView>
-
-        {/* Modals */}
-        <VaccinationModal
-          visible={showVaccinationModal}
-          value={newVaccination}
-          onChange={setNewVaccination}
-          onClose={() => setShowVaccinationModal(false)}
-          onSave={addVaccination}
-          openDatePicker={openDatePicker}
-        />
-
-        <ServiceDocumentModal
-          visible={showServiceDocModal}
-          value={newServiceDoc}
-          onChange={setNewServiceDoc}
-          onClose={() => setShowServiceDocModal(false)}
-          onSave={addServiceDocument}
-          openDatePicker={openDatePicker}
-        />
-
-        <MedicationModal
-          visible={showMedicationModal}
-          title={editingMedication ? "Edit Medication" : "Add Medication"}
-          value={newMedication}
-          onChange={setNewMedication}
-          onClose={() => setShowMedicationModal(false)}
-          onSave={saveMedication}
-          openDatePicker={openDatePicker}
-        />
-
-        <ProviderModal
-          visible={showProviderModal}
-          title={editingProvider ? "Edit Provider" : "Add Provider"}
-          value={newProvider}
-          onChange={setNewProvider}
-          onClose={() => setShowProviderModal(false)}
-          onSave={saveProvider}
-        />
-
-        <ChecklistAddItemModal
-          visible={showAddItemModal}
-          value={newItemText}
-          onChange={setNewItemText}
-          onClose={() => setShowAddItemModal(false)}
-          onAdd={addCustomItem}
-        />
-
+        {/* Single DOB/Adoption Date Picker */}
         <DatePickerModal
-          visible={datePickerState.visible}
-          value={datePickerState.value}
-          title={datePickerState.title}
-          onConfirm={handleDateConfirm}
-          onCancel={closeDatePicker}
+          visible={showDatePicker}
+          value={dateMode === "DOB" ? dobDate : adoptionDate}
+          onConfirm={(d) => {
+            if (dateMode === "DOB") setDobDate(d);
+            else setAdoptionDate(d);
+            setShowDatePicker(false);
+          }}
+          onCancel={() => setShowDatePicker(false)}
+          title={dateMode === "DOB" ? "Select date of birth" : "Select adoption date"}
+        />
+
+        {/* Vaccination Date Picker */}
+        <DatePickerModal
+          visible={showVaxDatePicker}
+          value={vaxDateForId ? vaccinations.find((x) => x.id === vaxDateForId)?.date ?? null : null}
+          onConfirm={(d) => {
+            if (!vaxDateForId) return;
+            setVaccinations((prev) => prev.map((x) => (x.id === vaxDateForId ? { ...x, date: d } : x)));
+            setShowVaxDatePicker(false);
+            setVaxDateForId(null);
+          }}
+          onCancel={() => {
+            setShowVaxDatePicker(false);
+            setVaxDateForId(null);
+          }}
+          title="Select vaccination date"
+        />
+
+        {/* Time Picker (HH:mm) */}
+        <TimePickerModal
+          visible={timePickerOpen}
+          value={timePickerValue}
+          title="Select time"
+          onConfirm={(hhmm) => {
+            // Save to the correct schedule
+            handleTimePicked(hhmm);
+
+            // Also keep local state in sync for the row immediately
+            const ctx = timePickerContext;
+            if (!ctx) return;
+            if (ctx.kind === "FEED") setFeedingTime(ctx.index, hhmm);
+          }}
+          onCancel={() => {
+            setTimePickerOpen(false);
+            setTimePickerContext(null);
+          }}
         />
       </SafeAreaView>
+
+      {/* ── Breed picker bottom sheet ── */}
+      <Modal
+        visible={showBreedModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowBreedModal(false)}
+      >
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
+        <Pressable className="flex-1 bg-black/50" onPress={() => setShowBreedModal(false)}>
+          <Pressable
+            className="mt-auto bg-background rounded-t-3xl border-t border-border"
+            style={{ maxHeight: "80%" }}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <View className="items-center pt-3 pb-1">
+              <View className="w-10 h-1 rounded-full bg-muted-foreground/30" />
+            </View>
+
+            <View className="flex-row items-center justify-between px-6 pt-3 pb-4">
+              <Text className="text-lg font-semibold text-foreground">Select Breed</Text>
+              <TouchableOpacity onPress={() => setShowBreedModal(false)} activeOpacity={0.85} hitSlop={10}>
+                <Text className="text-primary font-semibold text-base">Done</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View className="px-6 pb-3">
+              <TextInput
+                className="bg-muted/30 border border-border rounded-xl px-4 text-foreground"
+                style={{ paddingVertical: 12 }}
+                value={breedSearch}
+                onChangeText={setBreedSearch}
+                placeholder="Search breed"
+                placeholderTextColor="rgb(148 163 184)"
+                clearButtonMode="while-editing"
+              />
+            </View>
+
+            <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+              <View className="px-6 pb-10 gap-1">
+                {filteredBreedOptions.map((opt) => {
+                  const active = breed === opt;
+                  return (
+                    <TouchableOpacity
+                      key={opt}
+                      onPress={() => { setBreed(opt); setShowBreedModal(false); }}
+                      className={`rounded-xl border px-4 py-3 ${active ? "bg-primary/10 border-primary" : "bg-card border-border"}`}
+                      activeOpacity={0.85}
+                    >
+                      <Text className={active ? "text-sm font-semibold text-primary" : "text-sm text-foreground"}>{opt}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+                {filteredBreedOptions.length === 0 && (
+                  <Text className="text-xs text-muted-foreground py-3">No matching breeds.</Text>
+                )}
+              </View>
+            </ScrollView>
+          </Pressable>
+        </Pressable>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* ── Vaccine picker bottom sheet ── */}
+      <Modal
+        visible={showVaxModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => { setShowVaxModal(false); setVaxPickerForId(null); }}
+      >
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
+        <Pressable
+          className="flex-1 bg-black/50"
+          onPress={() => { setShowVaxModal(false); setVaxPickerForId(null); }}
+        >
+          <Pressable
+            className="mt-auto bg-background rounded-t-3xl border-t border-border"
+            style={{ maxHeight: "82%" }}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <View className="items-center pt-3 pb-1">
+              <View className="w-10 h-1 rounded-full bg-muted-foreground/30" />
+            </View>
+
+            <View className="flex-row items-center justify-between px-6 pt-3 pb-4">
+              <Text className="text-lg font-semibold text-foreground">Select Vaccine</Text>
+              <TouchableOpacity
+                onPress={() => { setShowVaxModal(false); setVaxPickerForId(null); }}
+                activeOpacity={0.85}
+                hitSlop={10}
+              >
+                <Text className="text-primary font-semibold text-base">Done</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View className="px-6 pb-3">
+              <TextInput
+                className="bg-muted/30 border border-border rounded-xl px-4 text-foreground"
+                style={{ paddingVertical: 12 }}
+                value={vaxSearch}
+                onChangeText={setVaxSearch}
+                placeholder="Search vaccines"
+                placeholderTextColor="rgb(148 163 184)"
+                clearButtonMode="while-editing"
+              />
+            </View>
+
+            <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+              <View className="px-6 pb-10 gap-1">
+                {filteredVaxOptions.map((opt) => {
+                  const active = vaccinations.find((x) => x.id === vaxPickerForId)?.name === opt;
+                  return (
+                    <TouchableOpacity
+                      key={opt}
+                      onPress={() => {
+                        setVaccinations((prev) => prev.map((x) => (x.id === vaxPickerForId ? { ...x, name: opt } : x)));
+                        setShowVaxModal(false);
+                        setVaxPickerForId(null);
+                      }}
+                      className={`rounded-xl border px-4 py-3 ${active ? "bg-primary/10 border-primary" : "bg-card border-border"}`}
+                      activeOpacity={0.85}
+                    >
+                      <Text className={active ? "text-sm font-semibold text-primary" : "text-sm text-foreground"}>{opt}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+
+                <View className="mt-4 pt-4 border-t border-border gap-2">
+                  <Text className="text-xs text-muted-foreground">Or enter a custom vaccine name:</Text>
+                  <View className="flex-row gap-2 items-center">
+                    <TextInput
+                      className="flex-1 bg-muted/30 border border-border rounded-xl px-4 text-foreground"
+                      style={{ paddingVertical: 11 }}
+                      placeholder="e.g., Custom vaccine"
+                      placeholderTextColor="rgb(148 163 184)"
+                      returnKeyType="done"
+                      onSubmitEditing={(e) => {
+                        const val = e.nativeEvent.text?.trim();
+                        if (!val) return;
+                        setVaccinations((prev) => prev.map((x) => (x.id === vaxPickerForId ? { ...x, name: val } : x)));
+                        setShowVaxModal(false);
+                        setVaxPickerForId(null);
+                      }}
+                    />
+                  </View>
+                </View>
+              </View>
+            </ScrollView>
+          </Pressable>
+        </Pressable>
+        </KeyboardAvoidingView>
+      </Modal>
     </KeyboardDismiss>
   );
 }

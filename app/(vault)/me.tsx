@@ -6,7 +6,6 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { User, Smartphone, ArrowRight, ArrowLeft, Share2 } from "lucide-react-native";
 import { gql, useQuery } from "@apollo/client";
 import * as SecureStore from "expo-secure-store";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "@react-navigation/native";
 
 import KeyboardDismiss from "@/shared/ui/KeyboardDismiss";
@@ -15,8 +14,11 @@ import ProfileShareModal from "@/shared/ui/ProfileShareModal";
 import { ShareSection, shareProfilePdf } from "@/shared/share/profilePdf";
 import { getDependents } from "@/features/profiles/data/storage";
 
-import RecordSection, { LifeVaultRecord } from "@/features/records/ui/RecordSection";
+import RecordSection from "@/features/records/ui/RecordSection";
 import { PERSON_CATEGORY_ORDER, RecordCategory } from "@/domain/records/recordCategories";
+import type { LifeVaultRecord } from "@/domain/records/record.model";
+import { listRecordsForEntity } from "@/features/records/data/storage";
+import type { Attachment } from "@/shared/attachments/attachment.model";
 
 const ME = gql`
   query Me {
@@ -28,23 +30,8 @@ const ME = gql`
   }
 `;
 
-/**
- * Records storage (local-only demo path)
- * We store per-person records under: records_v1:<personId>
- */
-const userRecordsKey = (personId: string) => `records_v1:${personId}`;
-
 async function listUserRecords(personId: string): Promise<LifeVaultRecord[]> {
-  const raw = await AsyncStorage.getItem(userRecordsKey(personId));
-  const arr = raw ? JSON.parse(raw) : [];
-  const list = Array.isArray(arr) ? arr : [];
-
-  return list.map((r: any) => ({
-    id: String(r.id),
-    recordType: r.recordType,
-    title: r.title ?? null,
-    updatedAt: r.updatedAt ?? null,
-  }));
+  return listRecordsForEntity(personId);
 }
 
 export default function UserDetailScreen() {
@@ -320,10 +307,21 @@ export default function UserDetailScreen() {
                     key={category}
                     category={category as RecordCategory}
                     records={records}
-                    onAdd={(recordType) => {
+                    onAdd={(recordType, initialAttachment?: Attachment) => {
                       router.push({
                         pathname: "/(vault)/people/[personId]/records/add",
-                        params: { personId, recordType },
+                        params: {
+                          personId,
+                          recordType,
+                          ...(initialAttachment
+                            ? {
+                                initialAttachmentUri: initialAttachment.uri,
+                                initialAttachmentName: initialAttachment.fileName,
+                                initialAttachmentMime: initialAttachment.mimeType,
+                                initialAttachmentSource: initialAttachment.source,
+                              }
+                            : {}),
+                        },
                       } as any);
                     }}
                     onEdit={(record) => {
@@ -332,7 +330,22 @@ export default function UserDetailScreen() {
                         params: { personId, recordId: record.id },
                       } as any);
                     }}
-                    onOpen={(record) => {
+                    onOpen={(record, initialAttachment?: Attachment, replaceExistingAttachment?: boolean) => {
+                      if (initialAttachment) {
+                        router.push({
+                          pathname: "/(vault)/people/[personId]/records/[recordId]/edit",
+                          params: {
+                            personId,
+                            recordId: record.id,
+                            initialAttachmentUri: initialAttachment.uri,
+                            initialAttachmentName: initialAttachment.fileName,
+                            initialAttachmentMime: initialAttachment.mimeType,
+                            initialAttachmentSource: initialAttachment.source,
+                            replaceAttachment: replaceExistingAttachment ? "true" : "false",
+                          },
+                        } as any);
+                        return;
+                      }
                       router.push({
                         pathname: "/(vault)/people/[personId]/records/[recordId]",
                         params: { personId, recordId: record.id },

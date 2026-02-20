@@ -60,7 +60,7 @@ export default function TabsLayout() {
       />
 
       <Tabs.Screen
-        name="people"
+        name="household"
         options={{
           // shorter + Apple-y
           title: "Household",

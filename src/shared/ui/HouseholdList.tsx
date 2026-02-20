@@ -1,30 +1,12 @@
-// src/shared/ui/HouseholdList.tsx
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, Text, View } from "react-native";
 import { useRouter } from "expo-router";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import * as SecureStore from "expo-secure-store";
 import { User as UserIcon, PawPrint, ChevronRight } from "lucide-react-native";
 
 import SwipeToDeleteRow from "@/shared/ui/SwipeToDeleteRow";
-import { deletePersonLocal, deletePetLocal, PEOPLE_KEY, PETS_KEY } from "@/shared/utils/deleteLocalProfiles";
-
-type PersonProfile = {
-  id: string;
-  firstName: string;
-  lastName: string;
-  preferredName?: string;
-  relationship?: string;
-  isPrimary?: boolean;
-  avatar?: string;
-};
-
-type PetProfile = {
-  id: string;
-  petName: string;
-  kind?: string;
-  avatar?: string;
-};
+import { deletePersonLocal, deletePetLocal } from "@/shared/utils/deleteLocalProfiles";
+import { listPeopleProfiles, listPetProfiles } from "@/features/profiles/data/storage";
+import type { PersonProfile, PetProfile } from "@/features/profiles/domain/types";
 
 function safeName(first?: string, last?: string) {
   const full = `${first ?? ""} ${last ?? ""}`.trim();
@@ -53,16 +35,9 @@ export function HouseholdList() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [peopleRaw, petsRaw] = await Promise.all([
-        SecureStore.getItemAsync(PEOPLE_KEY),
-        AsyncStorage.getItem(PETS_KEY),
-      ]);
-
-      const ppl = peopleRaw ? JSON.parse(peopleRaw) : [];
-      const pet = petsRaw ? JSON.parse(petsRaw) : [];
-
-      setPeople(Array.isArray(ppl) ? ppl : []);
-      setPets(Array.isArray(pet) ? pet : []);
+      const [nextPeople, nextPets] = await Promise.all([listPeopleProfiles(), listPetProfiles()]);
+      setPeople(nextPeople);
+      setPets(nextPets);
     } finally {
       setLoading(false);
     }
@@ -76,17 +51,14 @@ export function HouseholdList() {
     const arr = [...people];
 
     arr.sort((a, b) => {
-      // Primary first
       const ap = a.isPrimary ? 1 : 0;
       const bp = b.isPrimary ? 1 : 0;
       if (ap !== bp) return bp - ap;
 
-      // Then relationship (so "Self" doesn't float weirdly)
       const ar = normalizeRel(a.relationship);
       const br = normalizeRel(b.relationship);
       if (ar !== br) return ar.localeCompare(br);
 
-      // Then name
       return personDisplay(a).localeCompare(personDisplay(b));
     });
 
@@ -101,9 +73,7 @@ export function HouseholdList() {
 
   const PeopleHeader = () => (
     <View className="mt-2 mb-2">
-      <Text className="text-xs font-semibold text-muted-foreground tracking-wider px-1">
-        PEOPLE
-      </Text>
+      <Text className="text-xs font-semibold text-muted-foreground tracking-wider px-1">PEOPLE</Text>
     </View>
   );
 
@@ -111,38 +81,19 @@ export function HouseholdList() {
     <View className="mt-8 mb-2">
       <View className="h-px bg-border" />
       <View className="pt-3">
-        <Text className="text-xs font-semibold text-muted-foreground tracking-wider px-1">
-          PETS
-        </Text>
+        <Text className="text-xs font-semibold text-muted-foreground tracking-wider px-1">PETS</Text>
       </View>
     </View>
   );
 
-  const Row = ({
-    leftIcon,
-    title,
-    subtitle,
-    onPress,
-  }: {
-    leftIcon: React.ReactNode;
-    title: string;
-    subtitle?: string;
-    onPress: () => void;
-  }) => {
+  const Row = ({ leftIcon, title, subtitle, onPress }: { leftIcon: React.ReactNode; title: string; subtitle?: string; onPress: () => void }) => {
     return (
-      <Pressable
-        onPress={onPress}
-        className="rounded-2xl border border-border bg-card px-4 py-4 flex-row items-center"
-      >
-        <View className="w-10 h-10 rounded-xl bg-muted items-center justify-center mr-3">
-          {leftIcon}
-        </View>
+      <Pressable onPress={onPress} className="rounded-2xl border border-border bg-card px-4 py-4 flex-row items-center">
+        <View className="w-10 h-10 rounded-xl bg-muted items-center justify-center mr-3">{leftIcon}</View>
 
         <View className="flex-1">
           <Text className="text-foreground font-semibold">{title}</Text>
-          {subtitle ? (
-            <Text className="text-xs text-muted-foreground mt-0.5">{subtitle}</Text>
-          ) : null}
+          {subtitle ? <Text className="text-xs text-muted-foreground mt-0.5">{subtitle}</Text> : null}
         </View>
 
         <ChevronRight size={18} className="text-muted-foreground" />
@@ -154,7 +105,7 @@ export function HouseholdList() {
     return (
       <View className="flex-1 items-center justify-center">
         <ActivityIndicator />
-        <Text className="text-muted-foreground mt-3">Loading…</Text>
+        <Text className="text-muted-foreground mt-3">Loading...</Text>
       </View>
     );
   }
@@ -163,9 +114,7 @@ export function HouseholdList() {
     return (
       <View className="flex-1 items-center justify-center">
         <Text className="text-foreground font-semibold">No household members yet</Text>
-        <Text className="text-muted-foreground mt-2 text-center">
-          Add a person or pet from your Dashboard.
-        </Text>
+        <Text className="text-muted-foreground mt-2 text-center">Add a person or pet from your Dashboard.</Text>
       </View>
     );
   }
@@ -177,7 +126,7 @@ export function HouseholdList() {
       <View className="gap-3">
         {sortedPeople.map((p) => {
           const title = personDisplay(p);
-          const subtitle = p.isPrimary ? "Primary" : (p.relationship?.trim() || "Person");
+          const subtitle = p.isPrimary ? "Primary" : p.relationship?.trim() || "Person";
 
           return (
             <SwipeToDeleteRow
@@ -188,12 +137,7 @@ export function HouseholdList() {
                 await load();
               }}
             >
-              <Row
-                leftIcon={<UserIcon size={18} className="text-muted-foreground" />}
-                title={title}
-                subtitle={subtitle}
-                onPress={() => router.push(`/(vault)/people/${p.id}` as any)}
-              />
+              <Row leftIcon={<UserIcon size={18} className="text-muted-foreground" />} title={title} subtitle={subtitle} onPress={() => router.push(`/(vault)/people/${p.id}` as any)} />
             </SwipeToDeleteRow>
           );
         })}
@@ -204,7 +148,7 @@ export function HouseholdList() {
       <View className="gap-3">
         {sortedPets.map((p) => {
           const title = petDisplay(p);
-          const subtitle = (p.kind ?? "").trim() ? (p.kind as string) : "Pet";
+          const subtitle = (p.kind || p.kindOtherText || "Pet").trim();
 
           return (
             <SwipeToDeleteRow
@@ -215,12 +159,7 @@ export function HouseholdList() {
                 await load();
               }}
             >
-              <Row
-                leftIcon={<PawPrint size={18} className="text-muted-foreground" />}
-                title={title}
-                subtitle={subtitle}
-                onPress={() => router.push(`/(vault)/pets/${p.id}` as any)}
-              />
+              <Row leftIcon={<PawPrint size={18} className="text-muted-foreground" />} title={title} subtitle={subtitle} onPress={() => router.push(`/(vault)/pets/${p.id}` as any)} />
             </SwipeToDeleteRow>
           );
         })}
