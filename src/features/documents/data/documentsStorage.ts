@@ -53,14 +53,12 @@ type RuntimeOcrModule = {
   detectTextAsync?: (uri: string) => Promise<RuntimeOcrResult>;
 };
 
-function getRuntimeOcrModule(): RuntimeOcrModule | null {
-  const req = (globalThis as unknown as { require?: (moduleId: string) => unknown }).require;
-  if (typeof req !== "function") return null;
-  try {
-    return req("expo-text-extractor") as RuntimeOcrModule;
-  } catch {
-    return null;
-  }
+let OCR_MODULE: RuntimeOcrModule | null = null;
+try {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  OCR_MODULE = require("expo-text-extractor") as RuntimeOcrModule;
+} catch {
+  OCR_MODULE = null;
 }
 
 function normalizeRuntimeOcrText(input: RuntimeOcrResult): { text: string; lines: string[] } {
@@ -464,11 +462,10 @@ export async function runOcr(documentId: string): Promise<VaultDocument> {
     return upsertDocument({ ...doc, ocr: unsupported });
   }
 
-  const module = getRuntimeOcrModule();
   const run =
-    module?.extractFromImageAsync ||
-    module?.extractTextAsync ||
-    module?.detectTextAsync;
+    OCR_MODULE?.extractFromImageAsync ||
+    OCR_MODULE?.extractTextAsync ||
+    OCR_MODULE?.detectTextAsync;
 
   if (!run) {
     const failed: DocumentOcrResult = {
