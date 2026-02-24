@@ -1,5 +1,6 @@
 import React from "react";
 import { Alert, Keyboard, Modal, Pressable, ScrollView, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { CircleCheck } from "lucide-react-native";
 import { RecordType } from "@/domain/records/recordTypes";
 import { getFieldsForRecordType, resolveLabel, type ObjectListItemField } from "@/features/records/forms/formDefs";
 import DatePickerModal from "@/shared/ui/DatePickerModal";
@@ -7,6 +8,7 @@ import SwipeToDeleteRow from "@/shared/ui/SwipeToDeleteRow";
 import OptionPickerSheet from "@/shared/ui/OptionPickerSheet";
 import { formatDateLabel, parseDate, toIsoDateOnly } from "@/shared/utils/date";
 import { Contact, getContactDisplayName, getContacts } from "@/features/contacts/data/storage";
+import { DOG_VACCINATION_OPTIONS, CAT_VACCINATION_OPTIONS } from "@/features/pets/constants/options";
 import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 
@@ -40,17 +42,73 @@ function toBoolean(value: unknown) {
   return text === "true" || text === "1" || text === "yes";
 }
 
+/** Heuristic: detect field keys that should use a numeric keypad */
+function isNumericField(key: string): boolean {
+  const lower = key.toLowerCase();
+  return (
+    lower.includes("weight") ||
+    lower.includes("height") ||
+    lower.includes("age") ||
+    lower.includes("dose") ||
+    lower.includes("amount") ||
+    lower.includes("quantity") ||
+    lower.includes("zip") ||
+    lower.includes("postalcode") ||
+    lower.includes("phone") ||
+    lower.includes("portion") ||
+    lower === "ssn" ||
+    lower === "year"
+  );
+}
+
+/** Check whether a field value counts as "filled" for the green checkmark */
+function isFieldFilled(val: unknown): boolean {
+  if (val == null) return false;
+  if (typeof val === "boolean") return true;
+  if (typeof val === "number") return true;
+  if (typeof val === "string") return val.trim().length > 0;
+  if (Array.isArray(val)) return val.length > 0;
+  return false;
+}
+
+function FieldLabel({ label, filled }: { label: string; filled: boolean }) {
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+      <Text className="text-sm font-medium text-foreground">{label}</Text>
+      {filled && <CircleCheck size={14} color="#22c55e" />}
+    </View>
+  );
+}
+
 export default function RecordTypeFormRenderer({
   recordType,
   value,
   onChange,
+  entityMeta,
 }: {
   recordType: RecordType;
   value: AnyRecord;
   onChange: (next: any) => void;
+  entityMeta?: { kind?: string };
 }) {
   const router = useRouter();
-  const fields = getFieldsForRecordType(recordType, value);
+  const rawFields = getFieldsForRecordType(recordType, value);
+
+  // Dynamically inject vaccination options based on pet kind
+  const fields = React.useMemo(() => {
+    if (recordType !== "PET_VACCINATIONS" || !entityMeta?.kind) return rawFields;
+    const kind = entityMeta.kind.toLowerCase();
+    const vaccineOptions =
+      kind === "dog" ? DOG_VACCINATION_OPTIONS :
+      kind === "cat" ? CAT_VACCINATION_OPTIONS :
+      undefined;
+    if (!vaccineOptions) return rawFields;
+    return rawFields.map((f) =>
+      f.key === "vaccineName"
+        ? { ...f, type: "select" as const, options: vaccineOptions }
+        : f,
+    );
+  }, [rawFields, recordType, entityMeta?.kind]);
 
   const setField = (key: string, nextValue: any) => {
     onChange({ ...(value ?? {}), [key]: nextValue });
@@ -66,6 +124,10 @@ export default function RecordTypeFormRenderer({
     fieldKey: string | null;
     title: string;
     value: Date | null;
+    /** For objectList date fields */
+    listFieldKey?: string;
+    rowIndex?: number;
+    itemKey?: string;
   }>({
     visible: false,
     fieldKey: null,
@@ -119,12 +181,15 @@ export default function RecordTypeFormRenderer({
     }, [loadContacts])
   );
 
-  const openDatePicker = (fieldKey: string, fieldLabel: string) => {
+  const openDatePicker = (fieldKey: string, fieldLabel: string, listContext?: { listFieldKey: string; rowIndex: number; itemKey: string; currentValue: unknown }) => {
     setDatePickerState({
       visible: true,
       fieldKey,
       title: fieldLabel,
-      value: parseDate((value as any)?.[fieldKey] ?? null),
+      value: listContext ? parseDate(listContext.currentValue as string) : parseDate((value as any)?.[fieldKey] ?? null),
+      listFieldKey: listContext?.listFieldKey,
+      rowIndex: listContext?.rowIndex,
+      itemKey: listContext?.itemKey,
     });
   };
 
@@ -133,6 +198,11 @@ export default function RecordTypeFormRenderer({
   };
 
   const confirmDatePicker = (date: Date) => {
+    if (datePickerState.listFieldKey != null && datePickerState.rowIndex != null && datePickerState.itemKey) {
+      updateObjectListItem(datePickerState.listFieldKey, datePickerState.rowIndex, datePickerState.itemKey, toIsoDateOnly(date));
+      closeDatePicker();
+      return;
+    }
     if (!datePickerState.fieldKey) return;
     setField(datePickerState.fieldKey, toIsoDateOnly(date));
     closeDatePicker();
@@ -181,13 +251,13 @@ export default function RecordTypeFormRenderer({
     setField(key, next);
   };
 
-  const getObjectListItems = (fieldKey: string): Array<Record<string, unknown>> => {
+  const getObjectListItems = (fieldKey: string): Record<string, unknown>[] => {
     const raw = (value as any)?.[fieldKey];
     if (!Array.isArray(raw)) return [];
     return raw.filter((row) => !!row && typeof row === "object");
   };
 
-  const setObjectListItems = (fieldKey: string, nextItems: Array<Record<string, unknown>>) => {
+  const setObjectListItems = (fieldKey: string, nextItems: Record<string, unknown>[]) => {
     setField(fieldKey, nextItems);
   };
 
@@ -349,7 +419,7 @@ export default function RecordTypeFormRenderer({
           if (f.type === "description") {
             return (
               <View key={f.key} className="rounded-2xl bg-muted/40 border border-border px-4 py-4">
-                <Text className="text-sm text-muted-foreground leading-5">{f.content ?? fLabel}</Text>
+                <Text className="text-base text-muted-foreground leading-6">{f.content ?? fLabel}</Text>
               </View>
             );
           }
@@ -363,7 +433,7 @@ export default function RecordTypeFormRenderer({
 
             return (
               <View key={f.key} className="gap-2">
-                <Text className="text-sm font-medium text-foreground">{fLabel}</Text>
+                <FieldLabel label={fLabel} filled={isFieldFilled(fieldValue)} />
 
                 <View className="gap-2">
                   {items.map((item, idx) => {
@@ -424,7 +494,7 @@ export default function RecordTypeFormRenderer({
                                           }`}
                                           activeOpacity={0.85}
                                         >
-                                          <Text className={selected ? "text-xs font-semibold text-primary-foreground" : "text-xs text-foreground"}>
+                                          <Text className={selected ? "text-xs font-semibold text-primary-foreground" : "text-xs text-muted-foreground"}>
                                             {option}
                                           </Text>
                                         </TouchableOpacity>
@@ -446,16 +516,33 @@ export default function RecordTypeFormRenderer({
                                       className={`rounded-full border px-3 py-1.5 ${selected ? "bg-primary border-primary" : "bg-background border-border"}`}
                                       activeOpacity={0.85}
                                     >
-                                      <Text className={selected ? "text-xs font-semibold text-primary-foreground" : "text-xs text-foreground"}>Yes</Text>
+                                      <Text className={selected ? "text-xs font-semibold text-primary-foreground" : "text-xs text-muted-foreground"}>Yes</Text>
                                     </TouchableOpacity>
                                     <TouchableOpacity
                                       onPress={() => updateObjectListItem(f.key, idx, itemField.key, false)}
                                       className={`rounded-full border px-3 py-1.5 ${!selected ? "bg-primary border-primary" : "bg-background border-border"}`}
                                       activeOpacity={0.85}
                                     >
-                                      <Text className={!selected ? "text-xs font-semibold text-primary-foreground" : "text-xs text-foreground"}>No</Text>
+                                      <Text className={!selected ? "text-xs font-semibold text-primary-foreground" : "text-xs text-muted-foreground"}>No</Text>
                                     </TouchableOpacity>
                                   </View>
+                                </View>
+                              );
+                            }
+
+                            if (itemField.type === "date") {
+                              return (
+                                <View key={`${f.key}-${idx}-${itemField.key}`} className="gap-1.5">
+                                  <Text className="text-xs font-medium text-muted-foreground">{label}</Text>
+                                  <TouchableOpacity
+                                    onPress={() => openDatePicker(itemField.key, label, { listFieldKey: f.key, rowIndex: idx, itemKey: itemField.key, currentValue: itemValue })}
+                                    className="bg-background border border-border rounded-xl px-3 py-2"
+                                    activeOpacity={0.85}
+                                  >
+                                    <Text className={itemValue ? "text-foreground" : "text-muted-foreground"}>
+                                      {formatDateLabel(itemValue as string, "Select date")}
+                                    </Text>
+                                  </TouchableOpacity>
                                 </View>
                               );
                             }
@@ -465,12 +552,14 @@ export default function RecordTypeFormRenderer({
                                 <Text className="text-xs font-medium text-muted-foreground">{label}</Text>
                                 <TextInput
                                   className="bg-background border border-border rounded-xl px-3 py-2 text-foreground"
-                                  placeholder={itemField.placeholder ?? (itemField.type === "date" ? "YYYY-MM-DD" : "")}
-                                  placeholderTextColor="rgb(148 163 184)"
+                                  placeholder={itemField.placeholder ?? ""}
+                                  placeholderTextColor="rgb(162 162 168)"
                                   value={String(itemValue ?? "")}
                                   onChangeText={(t) => updateObjectListItem(f.key, idx, itemField.key, t)}
                                   multiline={itemField.type === "multiline"}
                                   style={itemField.type === "multiline" ? { minHeight: 80, textAlignVertical: "top" as const } : undefined}
+                                  keyboardType={itemField.type !== "multiline" && isNumericField(itemField.key) ? "numeric" : "default"}
+                                  returnKeyType={itemField.type === "multiline" ? "default" : "done"}
                                 />
                               </View>
                             );
@@ -546,7 +635,7 @@ export default function RecordTypeFormRenderer({
 
             return (
               <View key={f.key} className="gap-2">
-                <Text className="text-sm font-medium text-foreground">{fLabel}</Text>
+                <FieldLabel label={fLabel} filled={isFieldFilled(fieldValue)} />
 
                 <View className="bg-card border border-border rounded-xl overflow-hidden">
                   {items.map((item, idx) => (
@@ -566,7 +655,7 @@ export default function RecordTypeFormRenderer({
                           value={inlineAdd.draft}
                           onChangeText={(t) => setInlineAdd((prev) => ({ ...prev, draft: t }))}
                           placeholder={copy.placeholder}
-                          placeholderTextColor="rgb(148 163 184)"
+                          placeholderTextColor="rgb(162 162 168)"
                           autoCapitalize="sentences"
                           autoCorrect
                           returnKeyType="done"
@@ -614,7 +703,7 @@ export default function RecordTypeFormRenderer({
                                 selected ? "bg-primary border-primary" : "bg-background border-border"
                               }`}
                             >
-                              <Text className={selected ? "text-xs font-semibold text-primary-foreground" : "text-xs text-foreground"}>
+                              <Text className={selected ? "text-xs font-semibold text-primary-foreground" : "text-xs text-muted-foreground"}>
                                 {option}
                               </Text>
                             </TouchableOpacity>
@@ -640,7 +729,7 @@ export default function RecordTypeFormRenderer({
           if (f.type === "document") {
             return (
               <View key={f.key} className="gap-2">
-                <Text className="text-sm font-medium text-foreground">{fLabel}</Text>
+                <FieldLabel label={fLabel} filled={isFieldFilled(fieldValue)} />
                 <View className="bg-card border border-border rounded-xl px-4 py-3">
                   <Text className="text-sm text-foreground">Use the Attachments section below to add files for this record.</Text>
                 </View>
@@ -652,7 +741,7 @@ export default function RecordTypeFormRenderer({
           if (f.type === "date" || isDateField(f.key, fLabel, f.placeholder)) {
             return (
               <View key={f.key} className="gap-2">
-                <Text className="text-sm font-medium text-foreground">{fLabel}</Text>
+                <FieldLabel label={fLabel} filled={isFieldFilled(fieldValue)} />
                 <TouchableOpacity
                   onPress={() => openDatePicker(f.key, fLabel)}
                   className="bg-card border border-border rounded-xl px-4 py-3"
@@ -670,7 +759,7 @@ export default function RecordTypeFormRenderer({
             const contactLabel = resolveContactLabel(fieldValue);
             return (
               <View key={f.key} className="gap-2">
-                <Text className="text-sm font-medium text-foreground">{fLabel}</Text>
+                <FieldLabel label={fLabel} filled={isFieldFilled(fieldValue)} />
                 <TouchableOpacity
                   onPress={() =>
                     openContactPicker({
@@ -698,7 +787,7 @@ export default function RecordTypeFormRenderer({
 
             return (
               <View key={f.key} className="gap-2">
-                <Text className="text-sm font-medium text-foreground">{fLabel}</Text>
+                <FieldLabel label={fLabel} filled={isFieldFilled(fieldValue)} />
                 {usePills ? (
                   <View className="flex-row flex-wrap gap-2 rounded-xl border border-border bg-card p-3">
                     {options.map((option) => {
@@ -718,7 +807,7 @@ export default function RecordTypeFormRenderer({
                             className={
                               isSelected
                                 ? "text-xs font-semibold text-primary-foreground"
-                                : "text-xs text-foreground"
+                                : "text-xs text-muted-foreground"
                             }
                           >
                             {option}
@@ -747,21 +836,21 @@ export default function RecordTypeFormRenderer({
             const selected = toBoolean(fieldValue);
             return (
               <View key={f.key} className="gap-2">
-                <Text className="text-sm font-medium text-foreground">{fLabel}</Text>
+                <FieldLabel label={fLabel} filled={isFieldFilled(fieldValue)} />
                 <View className="flex-row gap-2 rounded-xl border border-border bg-card p-3">
                   <TouchableOpacity
                     onPress={() => setField(f.key, true)}
                     className={`rounded-full border px-3 py-1.5 ${selected ? "bg-primary border-primary" : "bg-background border-border"}`}
                     activeOpacity={0.85}
                   >
-                    <Text className={selected ? "text-xs font-semibold text-primary-foreground" : "text-xs text-foreground"}>Yes</Text>
+                    <Text className={selected ? "text-xs font-semibold text-primary-foreground" : "text-xs text-muted-foreground"}>Yes</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     onPress={() => setField(f.key, false)}
                     className={`rounded-full border px-3 py-1.5 ${!selected ? "bg-primary border-primary" : "bg-background border-border"}`}
                     activeOpacity={0.85}
                   >
-                    <Text className={!selected ? "text-xs font-semibold text-primary-foreground" : "text-xs text-foreground"}>No</Text>
+                    <Text className={!selected ? "text-xs font-semibold text-primary-foreground" : "text-xs text-muted-foreground"}>No</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -771,15 +860,18 @@ export default function RecordTypeFormRenderer({
           // Default text input
           return (
             <View key={f.key} className="gap-2">
-              <Text className="text-sm font-medium text-foreground">{fLabel}</Text>
+              <FieldLabel label={fLabel} filled={isFieldFilled(fieldValue)} />
               <TextInput
                 className="bg-card border border-border rounded-xl px-4 py-3 text-foreground"
                 placeholder={f.placeholder ?? ""}
-                placeholderTextColor="rgb(148 163 184)"
+                placeholderTextColor="rgb(162 162 168)"
                 value={String(fieldValue ?? "")}
                 onChangeText={(t) => setField(f.key, t)}
                 multiline={f.type === "multiline"}
                 style={f.type === "multiline" ? { minHeight: 110, textAlignVertical: "top" as any } : undefined}
+                keyboardType={f.type !== "multiline" && isNumericField(f.key) ? "numeric" : "default"}
+                returnKeyType={f.type === "multiline" ? "default" : "done"}
+                blurOnSubmit={f.type !== "multiline"}
               />
             </View>
           );
@@ -856,7 +948,7 @@ export default function RecordTypeFormRenderer({
                 <TextInput
                   className="bg-card border border-border rounded-xl px-4 py-3 text-foreground"
                   placeholder="Search contacts"
-                  placeholderTextColor="rgb(148 163 184)"
+                  placeholderTextColor="rgb(162 162 168)"
                   value={contactSearch}
                   onChangeText={setContactSearch}
                 />

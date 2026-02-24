@@ -11,7 +11,7 @@ import {
   Share2,
   ChevronRight,
 } from "lucide-react-native";
-import { useColorScheme } from "nativewind";
+import { useColorScheme } from "@/lib/useColorScheme";
 
 type QuickAction = {
   id: string;

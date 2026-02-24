@@ -1,6 +1,6 @@
 // src/shared/ui/ThemeToggle.tsx
 import React from "react";
-import { useColorScheme } from "nativewind";
+import { useColorScheme } from "@/lib/useColorScheme";
 import { TouchableOpacity } from "react-native";
 import { Sun, Moon } from "lucide-react-native";
 

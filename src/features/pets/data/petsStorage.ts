@@ -32,7 +32,6 @@ async function readRawPets(): Promise<unknown> {
 
 function sanitizePet(input: PetProfileV1): PetProfileV1 {
   return {
-    ...input,
     schemaVersion: 1,
     id: String(input.id),
     petName: String(input.petName || "").trim(),
@@ -40,7 +39,7 @@ function sanitizePet(input: PetProfileV1): PetProfileV1 {
     kindOtherText: input.kindOtherText?.trim() || undefined,
     breed: input.breed?.trim() || undefined,
     breedOtherText: input.breedOtherText?.trim() || undefined,
-    avatar: input.avatar?.trim() || undefined,
+    avatarUri: input.avatarUri?.trim() || undefined,
     createdAt: input.createdAt || new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };

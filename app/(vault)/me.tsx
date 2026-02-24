@@ -12,7 +12,7 @@ import KeyboardDismiss from "@/shared/ui/KeyboardDismiss";
 import { getLocalOnlyMode, getLocalUser } from "@/shared/utils/localStorage";
 import ProfileShareModal from "@/shared/ui/ProfileShareModal";
 import { ShareSection, shareProfilePdf } from "@/shared/share/profilePdf";
-import { getDependents } from "@/features/profiles/data/storage";
+import { listPeople } from "@/features/people/data/peopleStorage";
 
 import RecordSection from "@/features/records/ui/RecordSection";
 import { PERSON_CATEGORY_ORDER, RecordCategory } from "@/domain/records/recordCategories";
@@ -97,9 +97,9 @@ export default function UserDetailScreen() {
     useCallback(() => {
       let cancelled = false;
       const loadPrimaryDependent = async () => {
-        const list = await getDependents();
+        const list = await listPeople();
         if (cancelled) return;
-        const primary = list.find((d: any) => !!d.isPrimary || String(d.relationship || "").toLowerCase() === "self");
+        const primary = list.find((d) => !!d.isPrimary || String(d.relationship || "").toLowerCase() === "self");
         setPrimaryDependentId(primary?.id ? String(primary.id) : null);
       };
       loadPrimaryDependent();

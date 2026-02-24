@@ -3,6 +3,7 @@ import React, { useEffect, useState } from "react";
 import { ActivityIndicator, View } from "react-native";
 import { Redirect } from "expo-router";
 import * as SecureStore from "expo-secure-store";
+import { listPeople } from "@/features/people/data/peopleStorage";
 
 const FORCE_ONBOARDING_TEMP = false;
 
@@ -16,7 +17,7 @@ const FORCE_ONBOARDING_TEMP = false;
  */
 export default function EntryGate() {
   const [ready, setReady] = useState(false);
-  const [hasOnboarded, setHasOnboarded] = useState(false);
+  const [redirectHref, setRedirectHref] = useState<string>("/onboarding");
 
   useEffect(() => {
     let alive = true;
@@ -34,7 +35,20 @@ export default function EntryGate() {
           flag2 === "true" ||
           flag2 === "1";
 
-        if (alive) setHasOnboarded(FORCE_ONBOARDING_TEMP ? false : ok);
+        if (!alive) return;
+
+        if (FORCE_ONBOARDING_TEMP || !ok) {
+          setRedirectHref("/onboarding");
+          return;
+        }
+
+        const people = await listPeople();
+        if (people.length === 0) {
+          setRedirectHref("/(vault)/people/add?primary=true");
+          return;
+        }
+
+        setRedirectHref("/(tabs)");
       } finally {
         if (alive) setReady(true);
       }
@@ -53,5 +67,5 @@ export default function EntryGate() {
     );
   }
 
-  return hasOnboarded ? <Redirect href="/(tabs)" /> : <Redirect href="/onboarding" />;
+  return <Redirect href={redirectHref as any} />;
 }

@@ -3,8 +3,15 @@ import { View, Text, ScrollView, TextInput, Pressable, Modal, Alert, Linking, Sh
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Search, Plus, Camera, Upload, Shield, Lock, FileText, Calendar, User, X, ChevronRight, Share2 } from 'lucide-react-native';
 import * as DocumentPicker from 'expo-document-picker';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import KeyboardDismiss from '@/shared/ui/KeyboardDismiss';
+import {
+  createDocument,
+  listDocuments,
+  listLinkedRecordsForDocument,
+  openDocumentUri,
+  shareDocument as shareStoredDocument,
+  type VaultDocument,
+} from '@/features/documents/data/documentsStorage';
 
 type DocumentType = 'insurance' | 'id' | 'medical' | 'vaccination' | 'travel' | 'other';
 
@@ -20,58 +27,31 @@ interface Document {
   size?: number | null;
 }
 
-const DOCUMENTS_KEY = 'documents_tab_v1';
+function inferDocumentType(doc: VaultDocument): DocumentType {
+  const tags = (doc.tags || []).map((t) => t.toLowerCase());
+  const title = `${doc.title || ''} ${doc.fileName || ''}`.toLowerCase();
+  if (tags.some((t) => t.includes('insurance')) || title.includes('insurance')) return 'insurance';
+  if (tags.some((t) => t.includes('passport') || t.includes('license') || t.includes('id')) || title.includes('passport') || title.includes('license')) return 'id';
+  if (tags.some((t) => t.includes('medical')) || title.includes('medical')) return 'medical';
+  if (tags.some((t) => t.includes('vaccine')) || title.includes('vaccine')) return 'vaccination';
+  if (tags.some((t) => t.includes('travel')) || title.includes('travel')) return 'travel';
+  return 'other';
+}
 
-const mockDocuments: Document[] = [
-  {
-    id: '1',
-    title: 'Health Insurance Card',
-    type: 'insurance',
-    date: '2024-01-15',
-    linkedProfile: 'John Anderson',
-    isSensitive: true,
-  },
-  {
-    id: '2',
-    title: "Driver's License",
-    type: 'id',
-    date: '2024-02-20',
-    linkedProfile: 'John Anderson',
-    isSensitive: true,
-  },
-  {
-    id: '3',
-    title: 'Vaccination Record - Max',
-    type: 'vaccination',
-    date: '2024-03-10',
-    linkedProfile: 'Max (Dog)',
-    isSensitive: false,
-  },
-  {
-    id: '4',
-    title: 'Pet Insurance Policy',
-    type: 'insurance',
-    date: '2024-01-05',
-    linkedProfile: 'Max (Dog)',
-    isSensitive: true,
-  },
-  {
-    id: '5',
-    title: 'Blood Test Results',
-    type: 'medical',
-    date: '2024-02-28',
-    linkedProfile: 'John Anderson',
-    isSensitive: true,
-  },
-  {
-    id: '6',
-    title: 'Vaccination Record - Bella',
-    type: 'vaccination',
-    date: '2024-03-05',
-    linkedProfile: 'Bella (Cat)',
-    isSensitive: false,
-  },
-];
+async function toScreenDocument(doc: VaultDocument): Promise<Document> {
+  const links = await listLinkedRecordsForDocument(doc.id);
+  return {
+    id: doc.id,
+    title: doc.title || doc.fileName || 'Document',
+    type: inferDocumentType(doc),
+    date: doc.createdAt,
+    linkedProfile: links.length > 0 ? `Linked to ${links.length} record${links.length === 1 ? '' : 's'}` : 'Unlinked',
+    isSensitive: (doc.tags || []).includes('sensitive'),
+    uri: doc.uri,
+    mimeType: doc.mimeType,
+    size: doc.sizeBytes,
+  };
+}
 
 const filterOptions: { label: string; value: DocumentType | 'all' }[] = [
   { label: 'All', value: 'all' },
@@ -115,18 +95,12 @@ export default function DocumentsScreen() {
 
   useEffect(() => {
     const load = async () => {
-      const raw = await AsyncStorage.getItem(DOCUMENTS_KEY);
-      const parsed = raw ? JSON.parse(raw) : [];
-      const list = Array.isArray(parsed) ? parsed : [];
-      setDocuments(list.length > 0 ? list : mockDocuments);
+      const list = await listDocuments();
+      const mapped = await Promise.all(list.map((doc) => toScreenDocument(doc)));
+      setDocuments(mapped);
     };
     load();
   }, []);
-
-  const saveDocuments = async (next: Document[]) => {
-    setDocuments(next);
-    await AsyncStorage.setItem(DOCUMENTS_KEY, JSON.stringify(next));
-  };
 
   const filteredDocuments = documents.filter((doc) => {
     const matchesSearch =
@@ -167,8 +141,12 @@ export default function DocumentsScreen() {
   };
 
   const shareDocument = async (document: Document) => {
-    const message = `LifeVault document: ${document.title}\nLinked profile: ${document.linkedProfile}`;
-    await Share.share({ message, title: `LifeVault: ${document.title}` });
+    try {
+      await shareStoredDocument(document.id);
+    } catch {
+      const message = `LifeVault document: ${document.title}\nLinked profile: ${document.linkedProfile}`;
+      await Share.share({ message, title: `LifeVault: ${document.title}` });
+    }
   };
 
   const resetUploadState = () => {
@@ -190,18 +168,37 @@ export default function DocumentsScreen() {
       if (!file?.uri) return;
 
       const nextDoc: Document = {
-        id: `doc_${Date.now()}_${Math.random().toString(16).slice(2)}`,
-        title: (uploadTitle || file.name || 'Document').trim(),
+        id: '',
+        title: '',
         type: uploadCategory,
-        date: new Date().toISOString().slice(0, 10),
-        linkedProfile: uploadProfile.trim() || 'Unlinked',
+        date: '',
+        linkedProfile: '',
         isSensitive: uploadSensitive,
-        uri: file.uri,
-        mimeType: file.mimeType ?? null,
-        size: file.size ?? null,
-      };
+      } as Document;
 
-      await saveDocuments([nextDoc, ...documents]);
+      const created = await createDocument({
+        uri: file.uri,
+        mimeType: file.mimeType || 'application/octet-stream',
+        fileName: file.name,
+        sizeBytes: file.size ?? undefined,
+        title: (uploadTitle || file.name || 'Document').trim(),
+        tags: [
+          uploadCategory,
+          ...(uploadSensitive ? ['sensitive'] : []),
+          ...(uploadProfile.trim() ? [`profile:${uploadProfile.trim()}`] : []),
+        ],
+      });
+
+      nextDoc.id = created.id;
+      nextDoc.title = created.title || created.fileName || 'Document';
+      nextDoc.type = inferDocumentType(created);
+      nextDoc.date = created.createdAt;
+      nextDoc.linkedProfile = uploadProfile.trim() || 'Unlinked';
+      nextDoc.uri = created.uri;
+      nextDoc.mimeType = created.mimeType;
+      nextDoc.size = created.sizeBytes ?? null;
+
+      setDocuments([nextDoc, ...documents]);
       setShowAddModal(false);
       resetUploadState();
     } catch (e: any) {
@@ -482,13 +479,19 @@ export default function DocumentsScreen() {
 
                   <View className="flex-row gap-3 mb-3">
                     <Pressable
-                      onPress={() => {
-                        if (selectedDocument.uri) {
-                          Linking.openURL(selectedDocument.uri);
-                        } else {
+                      onPress={async () => {
+                        if (!selectedDocument.uri) {
                           Alert.alert('View Document', 'No file is attached to this document.');
+                          setSelectedDocument(null);
+                          return;
                         }
-                        setSelectedDocument(null);
+                        try {
+                          await openDocumentUri(selectedDocument.uri, selectedDocument.mimeType || undefined);
+                        } catch (error: any) {
+                          Alert.alert('Cannot open file', error?.message ?? 'This document cannot be opened.');
+                        } finally {
+                          setSelectedDocument(null);
+                        }
                       }}
                       className="flex-1 bg-primary rounded-xl py-3 items-center"
                     >

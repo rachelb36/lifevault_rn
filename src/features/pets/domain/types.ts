@@ -1,7 +1,6 @@
-// Re-export from canonical location
 export type {
+  PetProfile,
   PetWeightUnit,
   PetMedication,
   PetVaccination,
-  PetProfile,
-} from "@/features/profiles/domain/profile.model";
+} from "@/features/pets/domain/pet.model";

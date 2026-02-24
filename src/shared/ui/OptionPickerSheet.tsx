@@ -117,7 +117,7 @@ export default function OptionPickerSheet({
                 className="bg-muted/30 border border-border rounded-xl px-4 text-foreground"
                 style={{ paddingVertical: 12 }}
                 placeholder="Search options"
-                placeholderTextColor="rgb(148 163 184)"
+                placeholderTextColor="rgb(162 162 168)"
                 value={search}
                 onChangeText={setSearch}
                 returnKeyType="search"
@@ -173,7 +173,7 @@ export default function OptionPickerSheet({
                     className="flex-1 bg-muted/30 border border-border rounded-xl px-4 text-foreground"
                     style={{ paddingVertical: 11 }}
                     placeholder="Describe your own…"
-                    placeholderTextColor="rgb(148 163 184)"
+                    placeholderTextColor="rgb(162 162 168)"
                     value={otherInput}
                     onChangeText={setOtherInput}
                     autoFocus

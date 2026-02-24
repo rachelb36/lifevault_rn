@@ -3,7 +3,7 @@ import "../../global.css";
 import React from "react";
 import { Tabs } from "expo-router";
 import { BookOpen, FileText, Home, Settings, Users } from "lucide-react-native";
-import { useColorScheme } from "nativewind";
+import { useColorScheme } from "@/lib/useColorScheme";
 
 /**
  * Tabs Layout (Main App Shell)

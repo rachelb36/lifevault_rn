@@ -8,7 +8,7 @@ import {
   Pressable,
 } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import { useColorScheme } from "nativewind";
+import { useColorScheme } from "@/lib/useColorScheme";
 
 type DatePickerModalProps = {
   visible: boolean;

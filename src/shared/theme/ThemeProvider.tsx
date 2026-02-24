@@ -1,22 +1,22 @@
-// src/shared/theme/ThemeProvider.tsx
-import React, { PropsWithChildren, useMemo } from "react";
-import { View } from "react-native";
-import { useColorScheme } from "nativewind";
-import { PaperProvider, MD3DarkTheme, MD3LightTheme } from "react-native-paper";
-import { darkTheme, lightTheme } from "@/shared/theme/theme";
+import React, { PropsWithChildren } from "react";
+import { StatusBar } from "expo-status-bar";
+import { ThemeProvider as NavThemeProvider } from "@react-navigation/native";
+
+import { useColorScheme } from "@/lib/useColorScheme";
+import { NAV_THEME } from "@/theme";
 
 export function ThemeProvider({ children }: PropsWithChildren) {
-  const { colorScheme } = useColorScheme();
-  const isDark = colorScheme === "dark";
-
-  const paperTheme = useMemo(() => (isDark ? MD3DarkTheme : MD3LightTheme), [isDark]);
-  const vars = isDark ? darkTheme : lightTheme;
+  const { colorScheme, isDarkColorScheme } = useColorScheme();
 
   return (
-    <PaperProvider theme={paperTheme}>
-      <View style={vars as any} className="flex-1 bg-background">
+    <>
+      <StatusBar
+        key={`root-status-bar-${isDarkColorScheme ? "light" : "dark"}`}
+        style={isDarkColorScheme ? "light" : "dark"}
+      />
+      <NavThemeProvider value={NAV_THEME[colorScheme]}>
         {children}
-      </View>
-    </PaperProvider>
+      </NavThemeProvider>
+    </>
   );
 }

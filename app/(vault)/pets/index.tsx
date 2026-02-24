@@ -1,3 +1,12 @@
+/**
+ * Pets List Screen — /(vault)/pets
+ *
+ * Displays all pet profiles as searchable cards. Each card shows avatar,
+ * pet name, kind, and breed. Tapping a card navigates to the pet detail
+ * page. A floating "+" button navigates to the add-pet flow.
+ *
+ * Route: /(vault)/pets
+ */
 import React, { useCallback, useMemo, useState } from "react";
 import { FlatList, Image, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -64,7 +73,7 @@ export default function PetsIndexScreen() {
             <TextInput
               className="flex-1 py-3 text-foreground"
               placeholder="Search pets..."
-              placeholderTextColor="rgb(168 162 158)"
+              placeholderTextColor="rgb(162 162 168)"
               value={searchQuery}
               onChangeText={setSearchQuery}
             />

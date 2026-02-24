@@ -59,7 +59,7 @@ export default function SupportProfileAttachmentsSection({ attachments, onChange
             value={titleDraft}
             onChangeText={setTitleDraft}
             placeholder={pendingAttachment.fileName || "Attachment title"}
-            placeholderTextColor="rgb(148 163 184)"
+            placeholderTextColor="rgb(162 162 168)"
             autoFocus
             returnKeyType="done"
             onSubmitEditing={handleConfirmTitle}

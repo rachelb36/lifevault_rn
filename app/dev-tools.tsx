@@ -1,7 +1,11 @@
 import React from "react";
-import { Alert, Pressable, Text, View } from "react-native";
+import { Alert, Pressable, Text } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { seedTestData, resetSeedData } from "@/shared/dev/seedTestData";
+import {
+  seedTestData,
+  resetSeedData,
+  copySeededRecordsToCurrentStorage,
+} from "@/shared/dev/seedTestData";
 
 export default function DevToolsScreen() {
   if (!__DEV__) return null;
@@ -28,9 +32,19 @@ export default function DevToolsScreen() {
           await resetSeedData();
           Alert.alert("Reset", "Seed data removed.");
         }}
-        className="border border-border rounded-2xl py-4 items-center"
+        className="border border-border rounded-2xl py-4 items-center mb-3"
       >
         <Text className="text-foreground font-semibold">Reset / Delete Seed Data</Text>
+      </Pressable>
+
+      <Pressable
+        onPress={async () => {
+          await copySeededRecordsToCurrentStorage();
+          Alert.alert("Copied", "Seeded records copied to current storage keys.");
+        }}
+        className="border border-border rounded-2xl py-4 items-center"
+      >
+        <Text className="text-foreground font-semibold">Copy Seed Records To Current Storage</Text>
       </Pressable>
     </SafeAreaView>
   );

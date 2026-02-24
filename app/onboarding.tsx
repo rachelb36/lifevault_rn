@@ -49,7 +49,7 @@ export default function OnboardingScreen() {
   const completing = false;
 
   const goToPrimarySetup = () => {
-    router.replace({ pathname: "/(vault)/people/add", params: { primary: "true" } });
+    router.replace("/(vault)/people/add?primary=true");
   };
 
   const handleContinue = async () => {
@@ -188,4 +188,3 @@ export default function OnboardingScreen() {
     </SafeAreaView>
   );
 }
-

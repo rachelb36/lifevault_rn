@@ -1,3 +1,13 @@
+/**
+ * People List Screen — /(vault)/people
+ *
+ * Displays all person profiles as searchable cards sorted by relationship
+ * rank (Self first, then family, then others). Each card shows avatar,
+ * name, and relationship. Tapping a card navigates to the person detail
+ * page. A floating "+" button navigates to the add-person flow.
+ *
+ * Route: /(vault)/people
+ */
 import React, { useCallback, useMemo, useState } from "react";
 import { FlatList, Image, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -129,7 +139,7 @@ export default function PeopleIndexScreen() {
             <TextInput
               className="flex-1 py-3 text-foreground"
               placeholder="Search people..."
-              placeholderTextColor="rgb(168 162 158)"
+              placeholderTextColor="rgb(162 162 168)"
               value={searchQuery}
               onChangeText={setSearchQuery}
             />

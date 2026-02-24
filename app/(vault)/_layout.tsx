@@ -3,7 +3,7 @@ import React, { useMemo } from "react";
 import { Stack, useRouter, useSegments } from "expo-router";
 import { View, Text, TouchableOpacity } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useColorScheme } from "nativewind";
+import { useColorScheme } from "@/lib/useColorScheme";
 import { Home, Users, BookOpen, FileText, Settings } from "lucide-react-native";
 import { PaperProvider, MD3DarkTheme, MD3LightTheme } from "react-native-paper";
 

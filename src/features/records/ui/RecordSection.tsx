@@ -1,6 +1,12 @@
 // src/features/records/ui/RecordSection.tsx
 import React, { useMemo, useState } from "react";
-import { Pressable, Text, TouchableOpacity, View } from "react-native";
+import {
+  Pressable,
+  Text,
+  TouchableOpacity,
+  View,
+  useWindowDimensions,
+} from "react-native";
 import { ChevronDown, ChevronRight, Plus } from "lucide-react-native";
 
 import { RecordCategory } from "@/domain/records/recordCategories";
@@ -11,9 +17,14 @@ import { getTypesForCategory } from "@/domain/records/selectors/getTypesForCateg
 import { isSingletonType } from "@/domain/records/selectors/isSingletonType";
 import { formatDateLabel } from "@/shared/utils/date";
 import RowWithSummary from "@/shared/ui/RowWithSummary";
-import { buildExpirySummary, buildNamesSummary, notAddedSummary } from "@/shared/utils/summary";
+import {
+  buildExpirySummary,
+  buildNamesSummary,
+  notAddedSummary,
+} from "@/shared/utils/summary";
 import AttachmentSourceSheet from "@/shared/attachments/AttachmentSourceSheet";
 import type { Attachment } from "@/shared/attachments/attachment.model";
+import { getRecordData } from "@/shared/utils/recordData";
 export type { LifeVaultRecord } from "@/domain/records/record.model";
 
 type Props = {
@@ -24,7 +35,7 @@ type Props = {
   onOpen: (
     record: LifeVaultRecord,
     initialAttachment?: Attachment,
-    replaceExistingAttachment?: boolean
+    replaceExistingAttachment?: boolean,
   ) => void;
 };
 
@@ -36,11 +47,10 @@ const CATEGORY_DISPLAY_LABELS: Partial<Record<string, string>> = {
   PRIVATE_HEALTH: "Support Profile",
 };
 
-function getRecordData(record: LifeVaultRecord): Record<string, unknown> {
-  return (record as any).data ?? (record as any).payload ?? {};
-}
-
-function getIdentificationSummary(recordType: RecordType, record: LifeVaultRecord | undefined): string {
+function getIdentificationSummary(
+  recordType: RecordType,
+  record: LifeVaultRecord | undefined,
+): string {
   if (!record) return notAddedSummary();
   const data = getRecordData(record) as Record<string, unknown>;
   const fullName = String(data.fullName || data.childFullName || "").trim();
@@ -54,14 +64,16 @@ function getIdentificationSummary(recordType: RecordType, record: LifeVaultRecor
 
   if (recordType === RECORD_TYPES.BIRTH_CERTIFICATE) {
     const dob = String(data.dateOfBirth || "").trim();
-    if (fullName && dob) return `${fullName} • DOB ${formatDateLabel(dob, dob)}`;
+    if (fullName && dob)
+      return `${fullName} • DOB ${formatDateLabel(dob, dob)}`;
     if (fullName) return fullName;
     if (dob) return `DOB ${formatDateLabel(dob, dob)}`;
   }
 
   if (recordType === RECORD_TYPES.SOCIAL_SECURITY_CARD) {
     const ssnRaw = String(data.ssn || "").replace(/\D/g, "");
-    if (fullName && ssnRaw.length >= 4) return `${fullName} • ****${ssnRaw.slice(-4)}`;
+    if (fullName && ssnRaw.length >= 4)
+      return `${fullName} • ****${ssnRaw.slice(-4)}`;
     if (fullName) return fullName;
     if (ssnRaw.length >= 4) return `****${ssnRaw.slice(-4)}`;
   }
@@ -74,15 +86,31 @@ function getIdentificationSummary(recordType: RecordType, record: LifeVaultRecor
   return notAddedSummary();
 }
 
-export default function RecordSection({ category, records, onAdd, onEdit, onOpen }: Props) {
+export default function RecordSection({
+  category,
+  records,
+  onAdd,
+  onEdit,
+  onOpen,
+}: Props) {
+  const { width, height } = useWindowDimensions();
+  const isLandscape = width > height;
+
   const [expanded, setExpanded] = useState(false);
   const [identSheetVisible, setIdentSheetVisible] = useState(false);
-  const [selectedIdentType, setSelectedIdentType] = useState<RecordType | null>(null);
+  const [selectedIdentType, setSelectedIdentType] = useState<RecordType | null>(
+    null,
+  );
 
-  const categoryRecordTypes = useMemo(() => getTypesForCategory(category), [category]);
+  const categoryRecordTypes = useMemo(
+    () => getTypesForCategory(category),
+    [category],
+  );
 
   const categoryRecords = useMemo(() => {
-    return records.filter((record) => getRecordMeta(record.recordType)?.category === category);
+    return records.filter(
+      (record) => getRecordMeta(record.recordType)?.category === category,
+    );
   }, [records, category]);
 
   const canAddType = (recordType: RecordType) => {
@@ -94,7 +122,9 @@ export default function RecordSection({ category, records, onAdd, onEdit, onOpen
 
   const isTravelCategory = category === "TRAVEL";
   const isIdentificationCategory = category === "IDENTIFICATION";
-  const isDirectSingletonCategory = (category === "PREFERENCES" || category === "SIZES") && categoryRecordTypes.length === 1;
+  const isDirectSingletonCategory =
+    (category === "PREFERENCES" || category === "SIZES") &&
+    categoryRecordTypes.length === 1;
 
   const travelTypes: RecordType[] = [
     RECORD_TYPES.PASSPORT,
@@ -106,7 +136,9 @@ export default function RecordSection({ category, records, onAdd, onEdit, onOpen
   const getLatestForType = (recordType: RecordType) =>
     categoryRecords
       .filter((r) => r.recordType === recordType)
-      .sort((a, b) => String(b.updatedAt || "").localeCompare(String(a.updatedAt || "")))[0];
+      .sort((a, b) =>
+        String(b.updatedAt || "").localeCompare(String(a.updatedAt || "")),
+      )[0];
 
   const getSummaryForType = (recordType: RecordType) => {
     const matching = categoryRecords.filter((r) => r.recordType === recordType);
@@ -114,12 +146,16 @@ export default function RecordSection({ category, records, onAdd, onEdit, onOpen
 
     const latest = matching
       .slice()
-      .sort((a, b) => String(b.updatedAt || "").localeCompare(String(a.updatedAt || "")))[0];
+      .sort((a, b) =>
+        String(b.updatedAt || "").localeCompare(String(a.updatedAt || "")),
+      )[0];
     const data = getRecordData(latest);
 
     if (recordType === RECORD_TYPES.PASSPORT) {
       return buildExpirySummary({
-        country: String((data as any).issuingCountry || (data as any).nationality || ""),
+        country: String(
+          (data as any).issuingCountry || (data as any).nationality || "",
+        ),
         expirationDate: String((data as any).expirationDate || ""),
       });
     }
@@ -134,8 +170,12 @@ export default function RecordSection({ category, records, onAdd, onEdit, onOpen
     if (recordType === RECORD_TYPES.LOYALTY_ACCOUNTS) {
       const names = matching.flatMap((record) => {
         const payload = getRecordData(record) as any;
-        const accounts = Array.isArray(payload.accounts) ? payload.accounts : [];
-        return accounts.map((a: any) => String(a.providerName || a.programType || "").trim()).filter(Boolean);
+        const accounts = Array.isArray(payload.accounts)
+          ? payload.accounts
+          : [];
+        return accounts
+          .map((a: any) => String(a.providerName || a.programType || "").trim())
+          .filter(Boolean);
       });
       return buildNamesSummary(names, 3);
     }
@@ -222,11 +262,12 @@ export default function RecordSection({ category, records, onAdd, onEdit, onOpen
 
       {/* Expanded content */}
       {!isDirectSingletonCategory && expanded && (
-        <View className="px-4 pb-4">
+        <View className={isLandscape ? "px-6 pb-4" : "px-4 pb-4"}>
           {isTravelCategory ? (
             <View className="gap-2">
               {travelTypes.map((recordType) => {
-                const title = getRecordMeta(recordType)?.label ?? labelize(recordType);
+                const title =
+                  getRecordMeta(recordType)?.label ?? labelize(recordType);
                 return (
                   <RowWithSummary
                     key={recordType}
@@ -240,7 +281,8 @@ export default function RecordSection({ category, records, onAdd, onEdit, onOpen
           ) : isIdentificationCategory ? (
             <View className="gap-2">
               {categoryRecordTypes.map((recordType) => {
-                const title = getRecordMeta(recordType)?.label ?? labelize(recordType);
+                const title =
+                  getRecordMeta(recordType)?.label ?? labelize(recordType);
                 const latest = getLatestForType(recordType);
                 const summary = getIdentificationSummary(recordType, latest);
                 return (
@@ -261,67 +303,82 @@ export default function RecordSection({ category, records, onAdd, onEdit, onOpen
             </View>
           ) : (
             <>
-          {/* Add “pills” */}
-          {categoryRecordTypes.length > 0 && (
-            <View className="mb-3 flex-row flex-wrap gap-2">
-              {categoryRecordTypes.map((recordType) => {
-                const disabled = !canAddType(recordType);
-                const label = getRecordMeta(recordType)?.label ?? labelize(recordType);
+              {/* Add “pills” */}
+              {categoryRecordTypes.length > 0 && (
+                <View
+                  className={
+                    isLandscape
+                      ? "mb-3 flex-row flex-wrap gap-3"
+                      : "mb-3 flex-row flex-wrap gap-2"
+                  }
+                >
+                  {categoryRecordTypes.map((recordType) => {
+                    const disabled = !canAddType(recordType);
+                    const label =
+                      getRecordMeta(recordType)?.label ?? labelize(recordType);
 
-                return (
-                  <TouchableOpacity
-                    key={recordType}
-                    onPress={() => onAdd(recordType)}
-                    disabled={disabled}
-                    activeOpacity={0.85}
-                    className={`flex-row items-center rounded-full px-3 py-2 ${
-                      disabled ? "bg-muted" : "bg-primary/10"
-                    }`}
-                  >
-                    <Plus
-                      size={12}
-                      className={disabled ? "text-muted-foreground" : "text-primary"}
-                    />
-                    <Text
-                      className={`ml-1 text-xs font-medium ${
-                        disabled ? "text-muted-foreground" : "text-primary"
-                      }`}
-                    >
-                      {label}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          )}
+                    return (
+                      <TouchableOpacity
+                        key={recordType}
+                        onPress={() => onAdd(recordType)}
+                        disabled={disabled}
+                        activeOpacity={0.85}
+                        className={`flex-row items-center rounded-full px-3 py-2 ${
+                          disabled ? "bg-muted" : "bg-primary/10"
+                        }`}
+                      >
+                        <Plus
+                          size={12}
+                          className={
+                            disabled ? "text-muted-foreground" : "text-primary"
+                          }
+                        />
+                        <Text
+                          className={`ml-1 text-xs font-medium ${
+                            disabled ? "text-muted-foreground" : "text-primary"
+                          }`}
+                        >
+                          {label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              )}
 
-          {/* Records list
+              {/* Records list
               Per your request: when empty, do NOT show “No records yet.”
               Just show pills above (expanded-only) and otherwise nothing here. */}
-          {categoryRecords.length > 0 && (
-            <View>
-              {categoryRecords.map((record) => (
-                <TouchableOpacity
-                  key={record.id}
-                  onPress={() => onOpen(record)}
-                  onLongPress={() => onEdit(record)}
-                  activeOpacity={0.85}
-                  className="mb-2 rounded-xl border border-border bg-background px-3 py-3"
-                >
-                  <Text className="text-sm font-medium text-foreground">
-                    {record.title || getRecordMeta(record.recordType)?.label || "Record"}
-                  </Text>
+              {categoryRecords.length > 0 && (
+                <View>
+                  {categoryRecords.map((record) => (
+                    <TouchableOpacity
+                      key={record.id}
+                      onPress={() => onOpen(record)}
+                      onLongPress={() => onEdit(record)}
+                      activeOpacity={0.85}
+                      className={
+                        isLandscape
+                          ? "mb-2 rounded-xl border border-border bg-background px-4 py-3"
+                          : "mb-2 rounded-xl border border-border bg-background px-3 py-3"
+                      }
+                    >
+                      <Text className="text-sm font-medium text-foreground">
+                        {record.title ||
+                          getRecordMeta(record.recordType)?.label ||
+                          "Record"}
+                      </Text>
 
-                  {/* Keep “updated at” small + subtle */}
-                  {record.updatedAt ? (
-                    <Text className="mt-1 text-[11px] text-muted-foreground">
-                      Updated {formatDateLabel(record.updatedAt, "—")}
-                    </Text>
-                  ) : null}
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
+                      {/* Keep “updated at” small + subtle */}
+                      {record.updatedAt ? (
+                        <Text className="mt-1 text-[11px] text-muted-foreground">
+                          Updated {formatDateLabel(record.updatedAt, "—")}
+                        </Text>
+                      ) : null}
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
             </>
           )}
         </View>
@@ -334,7 +391,11 @@ export default function RecordSection({ category, records, onAdd, onEdit, onOpen
         }}
         onPicked={onIdentificationPicked}
         onManual={onIdentificationManual}
-        title={selectedIdentType ? `${getRecordMeta(selectedIdentType)?.label ?? "Record"} Attachment` : "Add Attachment"}
+        title={
+          selectedIdentType
+            ? `${getRecordMeta(selectedIdentType)?.label ?? "Record"} Attachment`
+            : "Add Attachment"
+        }
       />
     </View>
   );

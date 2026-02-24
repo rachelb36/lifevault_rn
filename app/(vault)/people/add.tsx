@@ -1,8 +1,23 @@
+/**
+ * Add / Edit Person Screen — /(vault)/people/add
+ *
+ * Creates or edits a person's header-level profile fields: name (first,
+ * last, preferred), relationship, date of birth, and avatar photo. When
+ * an `id` param is present, loads the existing profile for editing;
+ * otherwise starts a blank form. For the primary user (self), relationship
+ * is locked to "Self" and name may be pre-filled from SecureStore.
+ *
+ * All other person data (identification, medical, etc.) is managed via
+ * record forms on the person detail page.
+ *
+ * Route: /(vault)/people/add?id=<optional>
+ */
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Alert, ScrollView, Text, TouchableOpacity, View } from "react-native";
+import { Alert, Image, ScrollView, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { ArrowLeft, Calendar, User as UserIcon } from "lucide-react-native";
+import { ArrowLeft, Calendar, Camera, User as UserIcon } from "lucide-react-native";
+import * as ImagePicker from "expo-image-picker";
 import { gql, useApolloClient, useMutation } from "@apollo/client";
 import * as SecureStore from "expo-secure-store";
 
@@ -10,9 +25,10 @@ import DatePickerModal from "@/shared/ui/DatePickerModal";
 import KeyboardDismiss from "@/shared/ui/KeyboardDismiss";
 import NameFields from "@/shared/ui/NameFields";
 import { toIsoDateOnly, formatDateLabel } from "@/shared/utils/date";
-import { RELATIONSHIP_OPTIONS } from "@/features/profiles/constants/options";
+import { RELATIONSHIP_OPTIONS, type RelationshipOption } from "@/features/people/constants/options";
 import { getLocalOnlyMode } from "@/shared/utils/localStorage";
-import { getDependents, saveDependents } from "@/features/profiles/data/storage";
+import { listPeople, upsertPerson } from "@/features/people/data/peopleStorage";
+import type { PersonProfileV1 } from "@/features/people/domain/person.schema";
 
 const MY_VAULTS = gql`
   query MyVaults {
@@ -49,8 +65,14 @@ export default function AddDependentScreen() {
   const { primary, id } = useLocalSearchParams<{ primary?: string; id?: string }>();
   const editId = Array.isArray(id) ? id[0] : id;
   const primaryValue = Array.isArray(primary) ? primary[0] : primary;
-  const isPrimaryFlow = primaryValue === "true" || primaryValue === "1";
   const isEditing = !!editId;
+  const [hasAnyPeople, setHasAnyPeople] = useState<boolean | null>(null);
+
+  const isPrimaryFromParam = primaryValue === "true" || primaryValue === "1";
+  const shouldForcePrimaryForFirstProfile =
+    !isEditing && hasAnyPeople === false;
+  const isPrimaryFlow =
+    isPrimaryFromParam || shouldForcePrimaryForFirstProfile;
 
   const apolloClient = useApolloClient();
   const [createEntity, { loading: saving }] = useMutation(CREATE_ENTITY);
@@ -61,13 +83,67 @@ export default function AddDependentScreen() {
   const [preferredName, setPreferredName] = useState("");
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
 
-  const [relationship, setRelationship] = useState(isPrimaryFlow ? "Self" : "");
+  const [relationship, setRelationship] = useState<RelationshipOption | "Self">(isPrimaryFlow ? "Self" : "Other");
   const [dobDate, setDobDate] = useState<Date | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<{
+    firstName?: string;
+    lastName?: string;
+    relationship?: string;
+    dob?: string;
+  }>({});
+  const [initialSnapshot, setInitialSnapshot] = useState("");
 
-  const isPrimary = useMemo(() => (isPrimaryFlow ? true : relationship.trim().toLowerCase() === "self"), [isPrimaryFlow, relationship]);
+  const isPrimary = useMemo(() => (isPrimaryFlow ? true : relationship === "Self"), [isPrimaryFlow, relationship]);
 
   const screenTitle = isPrimaryFlow ? "Complete Your Profile" : isEditing ? "Edit" : "Add";
+  const currentSnapshot = useMemo(
+    () =>
+      JSON.stringify({
+        firstName,
+        lastName,
+        preferredName,
+        avatarUri,
+        relationship,
+        dobDate: dobDate ? toIsoDateOnly(dobDate) : "",
+      }),
+    [firstName, lastName, preferredName, avatarUri, relationship, dobDate],
+  );
+  const hasUnsavedChanges =
+    initialSnapshot.length > 0 && initialSnapshot !== currentSnapshot;
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      const all = await listPeople();
+      if (!cancelled) setHasAnyPeople(all.length > 0);
+    };
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (hasAnyPeople !== null && !isEditing && initialSnapshot.length === 0) {
+      setInitialSnapshot(
+        JSON.stringify({
+          firstName: "",
+          lastName: "",
+          preferredName: "",
+          avatarUri: null,
+          relationship: isPrimaryFlow ? "Self" : "Other",
+          dobDate: "",
+        }),
+      );
+    }
+  }, [hasAnyPeople, isEditing, initialSnapshot.length, isPrimaryFlow]);
+
+  useEffect(() => {
+    if (isPrimaryFlow && relationship !== "Self") {
+      setRelationship("Self");
+    }
+  }, [isPrimaryFlow, relationship]);
 
   const getRelationshipInput = () => {
     const normalized = relationship.trim().toLowerCase();
@@ -94,7 +170,53 @@ export default function AddDependentScreen() {
   };
 
   const openPhotoActions = () => {
-    Alert.alert("Photo Upload Disabled", "Photo upload is temporarily disabled until dependencies are installed.");
+    const fromLibrary = async () => {
+      try {
+        const res = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ["images"],
+          quality: 0.8,
+          allowsEditing: true,
+          aspect: [1, 1],
+        });
+        if (!res.canceled && res.assets?.[0]?.uri) {
+          setAvatarUri(res.assets[0].uri);
+        }
+      } catch (e: any) {
+        Alert.alert("Error", e?.message ?? "Failed to open photo library.");
+      }
+    };
+
+    const fromCamera = async () => {
+      try {
+        const perm = await ImagePicker.requestCameraPermissionsAsync();
+        if (!perm.granted) {
+          Alert.alert("Camera access needed", "Please allow camera access in Settings.");
+          return;
+        }
+        const res = await ImagePicker.launchCameraAsync({
+          mediaTypes: ["images"],
+          quality: 0.8,
+          allowsEditing: true,
+          aspect: [1, 1],
+        });
+        if (!res.canceled && res.assets?.[0]?.uri) {
+          setAvatarUri(res.assets[0].uri);
+        }
+      } catch (e: any) {
+        Alert.alert("Error", e?.message ?? "Failed to open camera.");
+      }
+    };
+
+    const buttons: any[] = [
+      { text: "Choose from Library", onPress: fromLibrary },
+      { text: "Take Photo", onPress: fromCamera },
+    ];
+    if (avatarUri) {
+      buttons.push({ text: "Remove Photo", style: "destructive", onPress: () => setAvatarUri(null) });
+    }
+    buttons.push({ text: "Cancel", style: "cancel" });
+
+    Alert.alert("Photo", undefined, buttons);
   };
 
   useEffect(() => {
@@ -138,16 +260,26 @@ export default function AddDependentScreen() {
     let cancelled = false;
 
     const loadEdit = async () => {
-      const list = await getDependents();
-      const found = Array.isArray(list) ? list.find((d: any) => d.id === editId) : null;
+      const all = await listPeople();
+      const found = all.find((d) => d.id === editId);
       if (!found || cancelled) return;
 
       setFirstName(found.firstName || "");
       setLastName(found.lastName || "");
       setPreferredName(found.preferredName || "");
-      setRelationship(found.relationship || "");
+      setRelationship((found.relationship as RelationshipOption | "Self") || "Other");
       setDobDate(found.dob ? new Date(found.dob) : null);
-      setAvatarUri(found.avatar || null);
+      setAvatarUri(found.avatarUri || null);
+      setInitialSnapshot(
+        JSON.stringify({
+          firstName: found.firstName || "",
+          lastName: found.lastName || "",
+          preferredName: found.preferredName || "",
+          avatarUri: found.avatarUri || null,
+          relationship: (found.relationship as RelationshipOption | "Self") || "Other",
+          dobDate: found.dob || "",
+        }),
+      );
     };
 
     loadEdit();
@@ -157,23 +289,15 @@ export default function AddDependentScreen() {
   }, [isEditing, editId]);
 
   const validate = () => {
-    if (!firstName.trim()) {
-      Alert.alert("Required", "Please enter a first name.");
-      return false;
-    }
-    if (!lastName.trim()) {
-      Alert.alert("Required", "Please enter a last name.");
-      return false;
-    }
+    const nextErrors: typeof fieldErrors = {};
+    if (!firstName.trim()) nextErrors.firstName = "First name is required.";
+    if (!lastName.trim()) nextErrors.lastName = "Last name is required.";
     if (!isPrimaryFlow && !relationship.trim()) {
-      Alert.alert("Required", "Please select a relationship.");
-      return false;
+      nextErrors.relationship = "Relationship is required.";
     }
-    if (!dobDate) {
-      Alert.alert("Required", "Please select a date of birth.");
-      return false;
-    }
-    return true;
+    if (!dobDate) nextErrors.dob = "Date of birth is required.";
+    setFieldErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
   };
 
   const handleSave = async () => {
@@ -181,26 +305,24 @@ export default function AddDependentScreen() {
 
     try {
       let savedWithNetworkFallback = false;
-      const list = await getDependents();
+      const timestamp = new Date().toISOString();
 
-      const baseItem = {
-        id: editId || `dep-${Date.now()}`,
+      const person: PersonProfileV1 = {
+        schemaVersion: 1,
+        id: editId || `person_${Date.now()}`,
         firstName: firstName.trim(),
         lastName: lastName.trim(),
-        preferredName: preferredName.trim() || "",
-        relationship: isPrimaryFlow ? "Self" : relationship.trim(),
-        dob: dobDate ? toIsoDateOnly(dobDate) : "",
-        avatar: avatarUri || "",
+        preferredName: preferredName.trim() || undefined,
+        relationship: isPrimaryFlow ? "Self" : relationship,
+        dob: dobDate ? toIsoDateOnly(dobDate) : undefined,
+        avatarUri: avatarUri || undefined,
         isPrimary: isPrimaryFlow ? true : isPrimary,
-        hasCompletedProfile: true,
+        createdAt: timestamp,
+        updatedAt: timestamp,
       };
 
-      if (isEditing) {
-        const next = Array.isArray(list) ? list.map((d: any) => (d.id === editId ? { ...d, ...baseItem } : d)) : [baseItem];
-        await saveDependents(next as any);
-      } else {
+      if (!isEditing) {
         const localOnly = await getLocalOnlyMode();
-        let createdId = baseItem.id;
 
         if (!localOnly) {
           try {
@@ -211,37 +333,35 @@ export default function AddDependentScreen() {
                 input: {
                   vaultId,
                   entityType: "PERSON",
-                  displayName: `${baseItem.firstName} ${baseItem.lastName}`.trim(),
+                  displayName: `${person.firstName} ${person.lastName}`.trim(),
                   relationshipType: rel.type,
-                  relationshipOtherLabel: rel.other ?? null,
+                  relationshipOtherLabel: (rel as any).other ?? null,
                   dateOfBirth: dobDate ? toUtcMidnightIso(dobDate) : null,
                 },
               },
             });
 
             const created = res.data?.createEntity;
-            createdId = created?.id || baseItem.id;
+            if (created?.id) person.id = created.id;
           } catch {
             savedWithNetworkFallback = true;
           }
         }
-
-        const next = [{ ...baseItem, id: createdId }, ...(Array.isArray(list) ? list : [])];
-        await saveDependents(next as any);
-        baseItem.id = createdId;
       }
+
+      await upsertPerson(person);
 
       if (isPrimaryFlow) {
         await Promise.allSettled([
           SecureStore.setItemAsync("primaryProfileCreated", "true"),
-          SecureStore.setItemAsync("userFirstName", baseItem.firstName),
-          SecureStore.setItemAsync("userLastName", baseItem.lastName),
-          SecureStore.setItemAsync("userPreferredName", baseItem.preferredName || ""),
-          SecureStore.setItemAsync("userDob", baseItem.dob || ""),
+          SecureStore.setItemAsync("userFirstName", person.firstName),
+          SecureStore.setItemAsync("userLastName", person.lastName),
+          SecureStore.setItemAsync("userPreferredName", person.preferredName || ""),
+          SecureStore.setItemAsync("userDob", person.dob || ""),
         ]);
       }
 
-      const destination = `/profile-saved?type=dependent&id=${editId || baseItem.id}`;
+      const destination = `/profile-saved?type=dependent&id=${person.id}`;
       if (savedWithNetworkFallback) {
         Alert.alert("Saved locally", "Couldn't reach the server, but your person was saved on this device.", [
           { text: "OK", onPress: () => router.replace(destination as any) },
@@ -255,11 +375,26 @@ export default function AddDependentScreen() {
     }
   };
 
+  const handleBack = () => {
+    if (!hasUnsavedChanges) {
+      router.back();
+      return;
+    }
+    Alert.alert(
+      "Discard changes?",
+      "You have unsaved changes. Leave without saving?",
+      [
+        { text: "Stay", style: "cancel" },
+        { text: "Discard", style: "destructive", onPress: () => router.back() },
+      ],
+    );
+  };
+
   return (
     <KeyboardDismiss>
       <SafeAreaView className="flex-1 bg-background">
         <View className="flex-row items-center justify-between px-6 py-4 border-b border-border">
-          <TouchableOpacity onPress={() => router.back()} className="w-10 h-10 items-center justify-center" disabled={saving}>
+          <TouchableOpacity onPress={handleBack} className="w-10 h-10 items-center justify-center" disabled={saving}>
             <ArrowLeft size={22} className="text-foreground" />
           </TouchableOpacity>
           <Text className="text-lg font-semibold text-foreground">{screenTitle}</Text>
@@ -269,22 +404,35 @@ export default function AddDependentScreen() {
         <ScrollView contentContainerStyle={{ padding: 24, paddingBottom: 140, gap: 20 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
           <View className="items-center">
             <TouchableOpacity className="relative" activeOpacity={0.85} onPress={openPhotoActions}>
-              <View className="w-28 h-28 rounded-full bg-muted overflow-hidden border-4 border-background">
-                <View className="flex-1 items-center justify-center">
+              <View className="w-28 h-28 rounded-full bg-muted overflow-hidden border-4 border-background items-center justify-center">
+                {avatarUri ? (
+                  <Image source={{ uri: avatarUri }} className="w-28 h-28" />
+                ) : (
                   <UserIcon className="text-muted-foreground" size={48} />
-                </View>
+                )}
+              </View>
+              <View className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-primary items-center justify-center border-2 border-background">
+                <Camera size={14} className="text-primary-foreground" />
               </View>
             </TouchableOpacity>
-            <Text className="text-sm text-muted-foreground mt-3">Photo upload temporarily unavailable</Text>
+            <Text className="text-xs text-muted-foreground mt-3">Tap to add photo</Text>
           </View>
 
           <NameFields
             firstName={firstName}
             lastName={lastName}
             preferredName={preferredName}
-            onFirstNameChange={setFirstName}
-            onLastNameChange={setLastName}
+            onFirstNameChange={(value) => {
+              setFirstName(value);
+              setFieldErrors((prev) => ({ ...prev, firstName: undefined }));
+            }}
+            onLastNameChange={(value) => {
+              setLastName(value);
+              setFieldErrors((prev) => ({ ...prev, lastName: undefined }));
+            }}
             onPreferredNameChange={setPreferredName}
+            firstNameError={fieldErrors.firstName}
+            lastNameError={fieldErrors.lastName}
           />
 
           <View>
@@ -300,7 +448,10 @@ export default function AddDependentScreen() {
                   return (
                     <TouchableOpacity
                       key={option}
-                      onPress={() => setRelationship(option)}
+                      onPress={() => {
+                        setRelationship(option);
+                        setFieldErrors((prev) => ({ ...prev, relationship: undefined }));
+                      }}
                       className={`px-3 py-2 rounded-full border ${active ? "bg-primary border-primary" : "bg-card border-border"}`}
                     >
                       <Text className={active ? "text-primary-foreground text-xs font-semibold" : "text-foreground text-xs"}>{option}</Text>
@@ -309,6 +460,9 @@ export default function AddDependentScreen() {
                 })}
               </View>
             )}
+            {fieldErrors.relationship ? (
+              <Text className="mt-1 text-xs text-destructive">{fieldErrors.relationship}</Text>
+            ) : null}
           </View>
 
           <View>
@@ -317,14 +471,17 @@ export default function AddDependentScreen() {
               <Text className={dobDate ? "text-foreground" : "text-muted-foreground"}>{formatDateLabel(dobDate, "Select date of birth")}</Text>
               <Calendar size={18} className="text-muted-foreground" />
             </TouchableOpacity>
+            {fieldErrors.dob ? (
+              <Text className="mt-1 text-xs text-destructive">{fieldErrors.dob}</Text>
+            ) : null}
           </View>
 
           <View className="mt-6 gap-3">
             <TouchableOpacity onPress={handleSave} className="bg-primary rounded-xl py-4 items-center" activeOpacity={0.85}>
-              <Text className="text-primary-foreground font-semibold">{isPrimaryFlow ? "Save Profile" : isEditing ? "Save Changes" : "Save PERSON"}</Text>
+              <Text className="text-primary-foreground font-semibold">{isPrimaryFlow ? "Save Profile" : isEditing ? "Save Changes" : "Save Person"}</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity onPress={() => router.back()} className="border border-border rounded-xl py-4 items-center" activeOpacity={0.85}>
+            <TouchableOpacity onPress={handleBack} className="border border-border rounded-xl py-4 items-center" activeOpacity={0.85}>
               <Text className="text-foreground font-semibold">Cancel</Text>
             </TouchableOpacity>
           </View>
@@ -335,6 +492,7 @@ export default function AddDependentScreen() {
           value={dobDate}
           onConfirm={(date) => {
             setDobDate(date);
+            setFieldErrors((prev) => ({ ...prev, dob: undefined }));
             setShowDatePicker(false);
           }}
           onCancel={() => setShowDatePicker(false)}

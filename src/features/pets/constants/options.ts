@@ -194,7 +194,7 @@ export const PET_SLEEP_LOCATION_OPTIONS = [
 export type PetSleepLocationOption = (typeof PET_SLEEP_LOCATION_OPTIONS)[number];
 
 export const PET_CRATE_RULE_OPTIONS = ["Door open", "Door closed", "No crate"] as const;
-export type PetCrateRuleOption = (typeof PET_CRATE_RULE_OPTIONS)[number];\
+export type PetCrateRuleOption = (typeof PET_CRATE_RULE_OPTIONS)[number];
 
 
 
@@ -354,10 +354,10 @@ export type PetSideEffectSeverityOption =
 // ---------- Optional helper: risk flags for sitter summary ----------
 //
 
-export const PET_HIGH_RISK_SEPARATION_LEVELS: ReadonlyArray<PetSeparationAnxietyLevelOption> =
+export const PET_HIGH_RISK_SEPARATION_LEVELS: readonly PetSeparationAnxietyLevelOption[] =
   ["Severe – Destructive behavior or self-harm risk"];
 
-export const PET_HIGH_RISK_ESCAPE_LEVELS: ReadonlyArray<PetEscapeTendencyOption> =
+export const PET_HIGH_RISK_ESCAPE_LEVELS: readonly PetEscapeTendencyOption[] =
   ["Yes – Door-darter", "Yes – Fence climber/digger", "Yes – Will run if off leash"];
 
 
@@ -419,3 +419,11 @@ export type PetProviderTypeOption = (typeof PET_PROVIDER_TYPE_OPTIONS)[number];
 export const PET_NEUTERED_OPTIONS = ["Yes", "No", "Unknown"] as const;
 
 export type PetNeuteredOption = (typeof PET_NEUTERED_OPTIONS)[number];
+
+export const PET_GENDER_OPTIONS = ["Male", "Female"] as const;
+
+export type PetGenderOption = (typeof PET_GENDER_OPTIONS)[number];
+
+export const PET_WEIGHT_UNIT_OPTIONS = ["lb", "kg"] as const;
+
+export type PetWeightUnitOption = (typeof PET_WEIGHT_UNIT_OPTIONS)[number];

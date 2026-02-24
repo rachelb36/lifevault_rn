@@ -1,10 +1,19 @@
-import { RecordType, RECORD_TYPES } from "@/domain/records/recordTypes";
+import { RecordType } from "@/domain/records/recordTypes";
 import { getRecordMeta } from "@/domain/records/selectors/getRecordMeta";
 import {
   ADVOCACY_NEED_OPTIONS,
   AVOID_OPTIONS,
+  BLOOD_TYPE_OPTIONS,
   COPING_STRATEGY_OPTIONS,
+  GENERAL_SIZE_OPTIONS,
   PEOPLE_CARE_PROVIDER_TYPE_OPTIONS,
+  PRIVACY_LEVEL_OPTIONS,
+  SEVERITY_OPTIONS,
+  SHOE_CATEGORY_OPTIONS,
+  SHOE_SYSTEM_OPTIONS,
+  SHOE_WIDTH_OPTIONS,
+  TRAVEL_ID_OPTIONS,
+  TRAVEL_LOYALTY_TYPE_OPTIONS,
   SAFETY_RISK_OPTIONS,
   SENSORY_SEEKING_OPTIONS,
   SENSORY_SENSITIVITY_OPTIONS,
@@ -12,16 +21,38 @@ import {
   STRESSOR_OPTIONS,
   TRANSITION_SUPPORT_OPTIONS,
   TRIGGER_OPTIONS,
-} from "@/features/profiles/constants/options";
+  VACCINE_DOSE_OPTIONS,
+  HUMAN_VACCINATION_OPTIONS,
+  PERSON_SIZING_REFERENCE_OPTIONS,
+  PERSON_MEASUREMENT_UNIT_OPTIONS,
+  LEGAL_DOCUMENT_TYPE_OPTIONS,
+  OTHER_DOCUMENT_CATEGORY_OPTIONS,
+} from "@/features/people/constants/options";
 import {
+  PET_AGGRESSION_TRIGGER_OPTIONS,
+  PET_AVOID_TRIGGER_OPTIONS,
+  PET_CRATE_RULE_OPTIONS,
   PET_DOCUMENT_TYPE_OPTIONS,
+  PET_ESCAPE_TENDENCY_OPTIONS,
+  PET_FEAR_OPTIONS,
+  PET_FOOD_TYPE_OPTIONS,
+  PET_GENDER_OPTIONS,
+  PET_MED_ADMIN_METHOD_OPTIONS,
+  PET_MISSED_DOSE_INSTRUCTION_OPTIONS,
   PET_NEUTERED_OPTIONS,
+  PET_PORTION_UNIT_OPTIONS,
+  PET_POTTY_TIMES_PER_DAY_OPTIONS,
   PET_PROVIDER_TYPE_OPTIONS,
+  PET_RESOURCE_GUARDING_OPTIONS,
+  PET_SEPARATION_ANXIETY_LEVEL_OPTIONS,
+  PET_SIDE_EFFECT_SEVERITY_OPTIONS,
+  PET_SLEEP_LOCATION_OPTIONS,
+  PET_STRANGER_INTRODUCTION_OPTIONS,
+  PET_TOUCH_SENSITIVITY_AREA_OPTIONS,
+  PET_TREAT_ALLOWED_OPTIONS,
+  PET_TREAT_PURPOSE_OPTIONS,
+  PET_WEIGHT_UNIT_OPTIONS,
 } from "@/features/pets/constants/options";
-import {
-  TRAVEL_ID_OPTIONS,
-  TRAVEL_LOYALTY_TYPE_OPTIONS,
-} from "@/features/people/constants/travelOptions";
 import { COUNTRY_OPTIONS } from "@/shared/constants/options";
 import { formatDateLabel } from "@/shared/utils/date";
 
@@ -51,7 +82,7 @@ export type ObjectListItemField = {
 
 export function resolveLabel(
   label: string | LabelFn,
-  values: Record<string, unknown> = {}
+  values: Record<string, unknown> = {},
 ): string {
   return typeof label === "function" ? label(values) : label;
 }
@@ -94,7 +125,11 @@ export function getByPath(obj: unknown, path: string): unknown {
   }, obj);
 }
 
-export function setByPath<T extends Record<string, unknown>>(obj: T, path: string, value: unknown): T {
+export function setByPath<T extends Record<string, unknown>>(
+  obj: T,
+  path: string,
+  value: unknown,
+): T {
   const parts = path.split(".");
   let cursor: Record<string, unknown> = obj;
 
@@ -114,7 +149,8 @@ export function setByPath<T extends Record<string, unknown>>(obj: T, path: strin
 function toString(value: unknown): string {
   if (value == null) return "";
   if (typeof value === "string") return value;
-  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  if (typeof value === "number" || typeof value === "boolean")
+    return String(value);
   return "";
 }
 
@@ -146,221 +182,274 @@ function toBoolString(value: unknown, fallback = "false"): string {
   return fallback;
 }
 
-const CANONICAL_DEFAULTS: Partial<Record<RecordType, Record<string, unknown>>> = {
-  PASSPORT: {
-    firstName: "",
-    middleName: "",
-    lastName: "",
-    passportNumber: "",
-    nationality: "",
-    dateOfBirth: "",
-    sex: "",
-    placeOfBirth: "",
-    issueDate: "",
-    expirationDate: "",
-    issuingCountry: "",
-    issuingAuthority: "",
-    mrzRaw: "",
-  },
-  PASSPORT_CARD: {
-    fullName: "",
-    passportCardNumber: "",
-    dateOfBirth: "",
-    expirationDate: "",
-    issuingCountry: "",
-    mrzRaw: "",
-  },
-  DRIVERS_LICENSE: {
-    fullName: "",
-    dlNumber: "",
-    dateOfBirth: "",
-    expirationDate: "",
-    issueDate: "",
-    address: {
-      line1: "",
-      line2: "",
-      city: "",
-      state: "",
-      postalCode: "",
-      country: "",
+const CANONICAL_DEFAULTS: Partial<Record<RecordType, Record<string, unknown>>> =
+  {
+    PASSPORT: {
+      firstName: "",
+      middleName: "",
+      lastName: "",
+      passportNumber: "",
+      nationality: "",
+      dateOfBirth: "",
+      sex: "",
+      placeOfBirth: "",
+      issueDate: "",
+      expirationDate: "",
+      issuingCountry: "",
+      issuingAuthority: "",
+      mrzRaw: "",
     },
-    licenseClass: "",
-    restrictions: [],
-    issuingRegion: "",
-  },
-  BIRTH_CERTIFICATE: {
-    childFullName: "",
-    dateOfBirth: "",
-    placeOfBirth: {
-      city: "",
-      county: "",
-      state: "",
-      country: "",
+    PASSPORT_CARD: {
+      fullName: "",
+      passportCardNumber: "",
+      dateOfBirth: "",
+      expirationDate: "",
+      issuingCountry: "",
+      mrzRaw: "",
     },
-    certificateNumber: "",
-    parents: {
-      includeParents: false,
-      parent1Name: null,
-      parent2Name: null,
+    DRIVERS_LICENSE: {
+      fullName: "",
+      dlNumber: "",
+      dateOfBirth: "",
+      expirationDate: "",
+      issueDate: "",
+      address: {
+        line1: "",
+        line2: "",
+        city: "",
+        state: "",
+        postalCode: "",
+        country: "",
+      },
+      licenseClass: "",
+      restrictions: [],
+      issuingRegion: "",
     },
-  },
-  SOCIAL_SECURITY_CARD: {
-    fullName: "",
-    ssn: "",
-  },
-  INSURANCE_POLICY: {
-    insuranceType: "",
-    insurerName: "",
-    memberName: "",
-    memberId: "",
-    groupNumber: "",
-    planName: "",
-    rx: {
-      bin: "",
-      pcn: "",
-      rxGroup: "",
+    BIRTH_CERTIFICATE: {
+      childFullName: "",
+      dateOfBirth: "",
+      placeOfBirth: {
+        city: "",
+        county: "",
+        state: "",
+        country: "",
+      },
+      certificateNumber: "",
+      parents: {
+        includeParents: false,
+        parent1Name: null,
+        parent2Name: null,
+      },
     },
-    customerServicePhone: "",
-    website: "",
-    effectiveDate: "",
-  },
-  MEDICAL_PROFILE: {
-    bloodType: "",
-    allergies: [],
-    conditions: [],
-  },
-  MEDICAL_PROCEDURES: {
-    procedures: [],
-  },
-  PRESCRIPTIONS: {
-    prescriptions: [],
-  },
-  VACCINATIONS: {
-    vaccinations: [],
-  },
-  VISION_PRESCRIPTION: {
-    rxDate: "",
-    doctorContactId: "",
-  },
-  PRIVATE_HEALTH_PROFILE: {
-    advocacyNeeds: [],
-    stressors: [],
-    triggers: [],
-    copingStrategies: [],
-    avoids: [],
-    sensorySensitivities: [],
-    sensorySeeking: [],
-    sensorySupports: [],
-    transitionSupports: [],
-    safetyRisks: [],
-  },
-  SCHOOL_INFO: {
-    schoolName: "",
-    address: {
-      line1: "",
-      city: "",
-      state: "",
-      postalCode: "",
-      country: "",
+    SOCIAL_SECURITY_CARD: {
+      fullName: "",
+      ssn: "",
     },
-    mainOfficePhone: "",
-    nurseContactId: "",
-    counselorContactId: "",
-  },
-  AUTHORIZED_PICKUP: {
-    authorizedPickup: [],
-  },
-  PEOPLE_CARE_PROVIDERS: {
-    providerType: "",
-    contactId: "",
-  },
-  EDUCATION_RECORD: {
-    title: "",
-    schoolName: "",
-    gradeOrLevel: "",
-    year: "",
-  },
-  PET_PROFILE: {
-    kind: "",
-    breed: "",
-    dobOrAdoptionDate: "",
-    microchipId: "",
-    emergencyInstructions: "",
-  },
-  PET_SERVICE_DOCS: {
-    label: "",
-  },
-  PET_VET_RECORDS: {
-    label: "",
-  },
-  PET_BASICS: {
-    kind: "",
-    breed: "",
-    dobOrAdoptionDate: "",
-    microchipId: "",
-    neutered: "Unknown",
-  },
-  PET_CARE_PROVIDERS: {
-    providerType: "",
-    contactId: "",
-  },
-  PET_VACCINATIONS: {
-    vaccineName: "",
-    dateAdministered: "",
-    doseNumber: "",
-    doseTotal: "",
-    providerContactId: "",
-  },
-  PET_FLEA_PREVENTION: {
-    productName: "",
-    dateGiven: "",
-    nextDueDate: "",
-  },
-  PET_SURGERIES: {
-    procedureName: "",
-    date: "",
-    clinicOrHospital: "",
-    surgeonOrVetContactId: "",
-  },
-  PET_INSURANCE: {
-    providerName: "",
-    policyNumber: "",
-    memberId: "",
-    customerServicePhone: "",
-  },
-  PREFERENCES: {
-    likes: [],
-    dislikes: [],
-    hobbies: [],
-    favoriteSports: [],
-    favoriteColors: [],
-  },
-  SIZES: {
-    clothingSizes: [],
-    shoeSizes: [],
-  },
-  TRAVEL_IDS: {
-    travelIds: [],
-  },
-  LOYALTY_ACCOUNTS: {
-    accounts: [],
-  },
-  LEGAL_PROPERTY_DOCUMENT: {
-    documentType: "",
-    title: "",
-    ownerEntityId: "",
-    issueDate: "",
-    expirationDate: null,
-  },
-  OTHER_DOCUMENT: {
-    title: "",
-  },
+    MEDICAL_INSURANCE: {
+      insuranceType: "",
+      insurerName: "",
+      memberName: "",
+      memberId: "",
+      groupNumber: "",
+      planName: "",
+      rx: {
+        bin: "",
+        pcn: "",
+        rxGroup: "",
+      },
+      customerServicePhone: "",
+      website: "",
+      effectiveDate: "",
+    },
+    MEDICAL_PROFILE: {
+      bloodType: "",
+      allergies: [],
+      conditions: [],
+    },
+    MEDICAL_PROCEDURES: {
+      procedures: [],
+    },
+    PRESCRIPTIONS: {
+      prescriptions: [],
+    },
+    VACCINATIONS: {
+      vaccinations: [],
+    },
+    VISION_PRESCRIPTION: {
+      rxDate: "",
+      doctorContactId: "",
+    },
+    PRIVATE_HEALTH_PROFILE: {
+      advocacyNeeds: [],
+      stressors: [],
+      triggers: [],
+      copingStrategies: [],
+      avoids: [],
+      sensorySensitivities: [],
+      sensorySeeking: [],
+      sensorySupports: [],
+      transitionSupports: [],
+      safetyRisks: [],
+    },
+    SCHOOL_INFO: {
+      schoolName: "",
+      address: {
+        line1: "",
+        city: "",
+        state: "",
+        postalCode: "",
+        country: "",
+      },
+      mainOfficePhone: "",
+      nurseContactId: "",
+      counselorContactId: "",
 
-  // Compatibility aliases
-  PET_DOCUMENT: {
-    label: "",
-  },
-};
+      // moved in from AUTHORIZED_PICKUP for better organization, but keep defaults here for backward compatibility
+      authorizedPickup: [],
+    },
+
+    PEOPLE_CARE_PROVIDERS: {
+      providerType: "",
+      contactId: "",
+    },
+    EDUCATION_RECORD: {
+      title: "",
+      schoolName: "",
+      gradeOrLevel: "",
+      year: "",
+    },
+    PET_BASICS: {
+      isNeutered: "Unknown",
+      microchipId: "",
+      currentWeightValue: "",
+      currentWeightUnit: "lb",
+      notes: "",
+    },
+    PET_CARE_PROVIDERS: {
+      providerType: "",
+      contactId: "",
+    },
+    PET_VACCINATIONS: {
+      vaccineName: "",
+      dateAdministered: "",
+      doseNumber: "",
+      doseTotal: "",
+      providerContactId: "",
+    },
+    PET_FLEA_PREVENTION: {
+      productName: "",
+      dateGiven: "",
+      nextDueDate: "",
+    },
+    PET_SURGERIES: {
+      procedureName: "",
+      date: "",
+      clinicOrHospital: "",
+      surgeonOrVetContactId: "",
+    },
+    PET_INSURANCE: {
+      providerName: "",
+      policyNumber: "",
+      memberId: "",
+      customerServicePhone: "",
+    },
+    PERSON_SIZING_PROFILE: {
+      sizingReference: "",
+      measurementUnit: "",
+      generalSize: "",
+      notes: "",
+    },
+    PREFERENCES: {
+      likes: [],
+      dislikes: [],
+      hobbies: [],
+      favoriteSports: [],
+      favoriteColors: [],
+    },
+    SIZES: {
+      clothingSizes: [],
+      shoeSizes: [],
+    },
+    TRAVEL_IDS: {
+      travelIds: [],
+    },
+    LOYALTY_ACCOUNTS: {
+      accounts: [],
+    },
+    LEGAL_PROPERTY_DOCUMENT: {
+      documentType: "",
+      title: "",
+      ownerEntityId: "",
+      issueDate: "",
+      expirationDate: null,
+    },
+    OTHER_DOCUMENT: {
+      category: "",
+      title: "",
+    },
+
+    PET_OVERVIEW: {
+      gender: "",
+      dob: "",
+      adoptionDate: "",
+      notes: "",
+    },
+    PET_WEIGHT_ENTRY: {
+      weightValue: "",
+      weightUnit: "lb",
+      measuredAt: "",
+    },
+    PET_MEDICATIONS: {
+      medicationName: "",
+      dosage: "",
+      adminMethod: "",
+      scheduleNotes: "",
+      missedDoseAction: "",
+      missedDoseNotes: "",
+      sideEffectSeverity: "",
+      sideEffectsNotes: "",
+    },
+    PET_DIAGNOSES: {
+      diagnosisName: "",
+      date: "",
+      notes: "",
+    },
+    PET_FEEDING_ROUTINE: {
+      foodBrand: "",
+      foodType: "",
+      portionAmount: "",
+      portionUnit: "",
+      feedingTimes: "",
+      treatAllowed: "",
+      treatPurpose: "",
+      treatRulesNotes: "",
+    },
+    PET_BATHROOM_ROUTINE: {
+      pottyTimesPerDay: "",
+      leashHarnessNotes: "",
+      avoidTriggers: [],
+      avoidTriggersNotes: "",
+    },
+    PET_SLEEP_ROUTINE: {
+      sleepLocation: "",
+      crateRule: "",
+      bedtimeRoutine: "",
+    },
+    PET_BEHAVIOR_PROFILE: {
+      fears: [],
+      separationAnxietyLevel: "",
+      separationAnxietyNotes: "",
+      resourceGuarding: "",
+      escapeTendency: "",
+      aggressionTriggers: [],
+      strangerIntro: "",
+      touchSensitivities: [],
+    },
+    PET_DOCUMENT: {
+      label: "",
+      documentType: "",
+    },
+  };
 
 export const FORM_DEFS: Partial<Record<RecordType, FieldDef[]>> = {
   PASSPORT: [
@@ -368,13 +457,23 @@ export const FORM_DEFS: Partial<Record<RecordType, FieldDef[]>> = {
     { key: "middleName", label: "Middle name" },
     { key: "lastName", label: "Last name" },
     { key: "passportNumber", label: "Passport number" },
-    { key: "nationality", label: "Nationality", type: "select", options: COUNTRY_OPTIONS },
+    {
+      key: "nationality",
+      label: "Nationality",
+      type: "select",
+      options: COUNTRY_OPTIONS,
+    },
     { key: "dateOfBirth", label: "Date of birth", type: "date" },
-    { key: "sex", label: "Sex" },
+    { key: "sex", label: "Sex", type: "select", options: ["Male", "Female", "X"] as const },
     { key: "placeOfBirth", label: "Place of birth" },
     { key: "issueDate", label: "Issue date", type: "date" },
     { key: "expirationDate", label: "Expiration date", type: "date" },
-    { key: "issuingCountry", label: "Issuing country", type: "select", options: COUNTRY_OPTIONS },
+    {
+      key: "issuingCountry",
+      label: "Issuing country",
+      type: "select",
+      options: COUNTRY_OPTIONS,
+    },
     { key: "issuingAuthority", label: "Issuing authority" },
     { key: "mrzRaw", label: "MRZ raw", type: "multiline" },
   ],
@@ -384,7 +483,12 @@ export const FORM_DEFS: Partial<Record<RecordType, FieldDef[]>> = {
     { key: "passportCardNumber", label: "Passport card number" },
     { key: "dateOfBirth", label: "Date of birth", type: "date" },
     { key: "expirationDate", label: "Expiration date", type: "date" },
-    { key: "issuingCountry", label: "Issuing country", type: "select", options: COUNTRY_OPTIONS },
+    {
+      key: "issuingCountry",
+      label: "Issuing country",
+      type: "select",
+      options: COUNTRY_OPTIONS,
+    },
     { key: "mrzRaw", label: "MRZ raw", type: "multiline" },
   ],
 
@@ -399,9 +503,19 @@ export const FORM_DEFS: Partial<Record<RecordType, FieldDef[]>> = {
     { key: "address.city", label: "City" },
     { key: "address.state", label: "State" },
     { key: "address.postalCode", label: "Postal code" },
-    { key: "address.country", label: "Country", type: "select", options: COUNTRY_OPTIONS },
+    {
+      key: "address.country",
+      label: "Country",
+      type: "select",
+      options: COUNTRY_OPTIONS,
+    },
     { key: "licenseClass", label: "License class" },
-    { key: "restrictions", label: "Restrictions", type: "list", placeholder: "Add a restriction" },
+    {
+      key: "restrictions",
+      label: "Restrictions",
+      type: "list",
+      placeholder: "Add a restriction",
+    },
     { key: "issuingRegion", label: "Issuing region" },
   ],
 
@@ -411,9 +525,19 @@ export const FORM_DEFS: Partial<Record<RecordType, FieldDef[]>> = {
     { key: "placeOfBirth.city", label: "Birth city" },
     { key: "placeOfBirth.county", label: "Birth county" },
     { key: "placeOfBirth.state", label: "Birth state" },
-    { key: "placeOfBirth.country", label: "Birth country", type: "select", options: COUNTRY_OPTIONS },
+    {
+      key: "placeOfBirth.country",
+      label: "Birth country",
+      type: "select",
+      options: COUNTRY_OPTIONS,
+    },
     { key: "certificateNumber", label: "Certificate number" },
-    { key: "parents.includeParents", label: "Include parents", type: "select", options: ["true", "false"] },
+    {
+      key: "parents.includeParents",
+      label: "Include parents",
+      type: "select",
+      options: ["true", "false"],
+    },
     { key: "parents.parent1Name", label: "Parent 1 name" },
     { key: "parents.parent2Name", label: "Parent 2 name" },
   ],
@@ -423,7 +547,7 @@ export const FORM_DEFS: Partial<Record<RecordType, FieldDef[]>> = {
     { key: "ssn", label: "SSN" },
   ],
 
-  INSURANCE_POLICY: [
+  MEDICAL_INSURANCE: [
     { key: "insuranceType", label: "Insurance type" },
     { key: "insurerName", label: "Insurer name" },
     { key: "memberName", label: "Member name" },
@@ -439,7 +563,7 @@ export const FORM_DEFS: Partial<Record<RecordType, FieldDef[]>> = {
   ],
 
   MEDICAL_PROFILE: [
-    { key: "bloodType", label: "Blood type" },
+    { key: "bloodType", label: "Blood type", type: "select", options: BLOOD_TYPE_OPTIONS },
     {
       key: "allergies",
       label: "Allergies",
@@ -447,7 +571,7 @@ export const FORM_DEFS: Partial<Record<RecordType, FieldDef[]>> = {
       addLabel: "Add Allergy",
       itemFields: [
         { key: "label", label: "Allergy" },
-        { key: "severity", label: "Severity" },
+        { key: "severity", label: "Severity", type: "select", options: SEVERITY_OPTIONS },
         { key: "isActive", label: "Active", type: "toggle" },
       ],
     },
@@ -458,7 +582,7 @@ export const FORM_DEFS: Partial<Record<RecordType, FieldDef[]>> = {
       addLabel: "Add Condition",
       itemFields: [
         { key: "label", label: "Condition" },
-        { key: "severity", label: "Severity" },
+        { key: "severity", label: "Severity", type: "select", options: SEVERITY_OPTIONS },
         { key: "isActive", label: "Active", type: "toggle" },
       ],
     },
@@ -472,7 +596,7 @@ export const FORM_DEFS: Partial<Record<RecordType, FieldDef[]>> = {
       addLabel: "Add Procedure",
       itemFields: [
         { key: "procedureName", label: "Procedure name" },
-        { key: "monthYear", label: "Month / Year" },
+        { key: "monthYear", label: "Date", type: "date" },
         { key: "reasonNotes", label: "Reason / Notes", type: "multiline" },
         { key: "providerOrHospital", label: "Provider / Hospital" },
         { key: "complications", label: "Complications" },
@@ -491,12 +615,20 @@ export const FORM_DEFS: Partial<Record<RecordType, FieldDef[]>> = {
         { key: "dosage", label: "Dosage" },
         { key: "frequency", label: "Frequency" },
         { key: "indication", label: "Indication" },
-        { key: "prescribingProviderContactId", label: "Prescribing provider contact ID" },
+        {
+          key: "prescribingProviderContactId",
+          label: "Prescribing provider contact ID",
+        },
         { key: "pharmacyContactId", label: "Pharmacy contact ID" },
         { key: "startDate", label: "Start date", type: "date" },
         { key: "endDate", label: "End date", type: "date" },
         { key: "discontinued", label: "Discontinued", type: "toggle" },
-        { key: "privacy", label: "Privacy", type: "select", options: ["STANDARD", "PRIVATE"] },
+        {
+          key: "privacy",
+          label: "Privacy",
+          type: "select",
+          options: PRIVACY_LEVEL_OPTIONS,
+        },
         { key: "isActive", label: "Active", type: "toggle" },
       ],
     },
@@ -509,8 +641,8 @@ export const FORM_DEFS: Partial<Record<RecordType, FieldDef[]>> = {
       type: "objectList",
       addLabel: "Add Vaccination",
       itemFields: [
-        { key: "vaccineName", label: "Vaccine name" },
-        { key: "doseNumber", label: "Dose number" },
+        { key: "vaccineName", label: "Vaccine name", type: "select", options: [...HUMAN_VACCINATION_OPTIONS] },
+        { key: "doseNumber", label: "Dose number", type: "select", options: VACCINE_DOSE_OPTIONS },
         { key: "dateAdministered", label: "Date administered", type: "date" },
         { key: "expirationDate", label: "Expiration date", type: "date" },
         { key: "providerContactId", label: "Provider contact ID" },
@@ -528,29 +660,34 @@ export const FORM_DEFS: Partial<Record<RecordType, FieldDef[]>> = {
       key: "_intro",
       label: "",
       type: "description",
-      content: "This section helps others understand how to support this person in stressful, medical, or high-demand situations.\n\nAdd triggers, stressors, sensory needs, and strategies that help them feel safe, regulated, and understood.\n\nOnly visible to you unless shared.",
+      content:
+        "This section helps others understand how to support this person in stressful, medical, or high-demand situations.\n\nAdd triggers, stressors, sensory needs, and strategies that help them feel safe, regulated, and understood.\n\nOnly visible to you unless shared.",
     },
     {
       key: "advocacyNeeds",
-      label: "What accommodations or supports help this person succeed in school, social, or medical settings?",
+      label:
+        "What accommodations or supports help this person succeed in school, social, or medical settings?",
       type: "list",
       options: ADVOCACY_NEED_OPTIONS,
     },
     {
       key: "stressors",
-      label: "What situations or environments commonly increase stress or overwhelm?",
+      label:
+        "What situations or environments commonly increase stress or overwhelm?",
       type: "list",
       options: STRESSOR_OPTIONS,
     },
     {
       key: "triggers",
-      label: "What specific experiences or interactions may cause immediate distress or escalation?",
+      label:
+        "What specific experiences or interactions may cause immediate distress or escalation?",
       type: "list",
       options: TRIGGER_OPTIONS,
     },
     {
       key: "copingStrategies",
-      label: "What helps this person calm, regulate, or feel safe when overwhelmed?",
+      label:
+        "What helps this person calm, regulate, or feel safe when overwhelmed?",
       type: "list",
       options: COPING_STRATEGY_OPTIONS,
     },
@@ -562,7 +699,8 @@ export const FORM_DEFS: Partial<Record<RecordType, FieldDef[]>> = {
     },
     {
       key: "sensorySensitivities",
-      label: "Are there sensory inputs that are especially uncomfortable or overwhelming?",
+      label:
+        "Are there sensory inputs that are especially uncomfortable or overwhelming?",
       type: "list",
       options: SENSORY_SENSITIVITY_OPTIONS,
     },
@@ -574,13 +712,15 @@ export const FORM_DEFS: Partial<Record<RecordType, FieldDef[]>> = {
     },
     {
       key: "sensorySupports",
-      label: "What tools or environmental supports help regulate sensory needs?",
+      label:
+        "What tools or environmental supports help regulate sensory needs?",
       type: "list",
       options: SENSORY_SUPPORT_OPTIONS,
     },
     {
       key: "transitionSupports",
-      label: "What helps during transitions between activities or environments?",
+      label:
+        "What helps during transitions between activities or environments?",
       type: "list",
       options: TRANSITION_SUPPORT_OPTIONS,
     },
@@ -598,7 +738,12 @@ export const FORM_DEFS: Partial<Record<RecordType, FieldDef[]>> = {
     { key: "address.city", label: "City" },
     { key: "address.state", label: "State" },
     { key: "address.postalCode", label: "Postal code" },
-    { key: "address.country", label: "Country", type: "select", options: COUNTRY_OPTIONS },
+    {
+      key: "address.country",
+      label: "Country",
+      type: "select",
+      options: COUNTRY_OPTIONS,
+    },
     { key: "mainOfficePhone", label: "Main office phone" },
     { key: "nurseContactId", label: "Nurse contact ID" },
     { key: "counselorContactId", label: "Counselor contact ID" },
@@ -619,7 +764,12 @@ export const FORM_DEFS: Partial<Record<RecordType, FieldDef[]>> = {
   ],
 
   PEOPLE_CARE_PROVIDERS: [
-    { key: "providerType", label: "Provider type", type: "select", options: PEOPLE_CARE_PROVIDER_TYPE_OPTIONS },
+    {
+      key: "providerType",
+      label: "Provider type",
+      type: "select",
+      options: PEOPLE_CARE_PROVIDER_TYPE_OPTIONS,
+    },
     { key: "contactId", label: "Contact ID" },
   ],
   EDUCATION_RECORD: [
@@ -629,30 +779,30 @@ export const FORM_DEFS: Partial<Record<RecordType, FieldDef[]>> = {
     { key: "year", label: "Year" },
   ],
 
-  PET_PROFILE: [
-    { key: "kind", label: "Kind" },
-    { key: "breed", label: "Breed" },
-    { key: "dobOrAdoptionDate", label: "DOB or adoption date", type: "date" },
-    { key: "microchipId", label: "Microchip ID" },
-    { key: "emergencyInstructions", label: "Emergency instructions", type: "multiline" },
-  ],
-
-  PET_SERVICE_DOCS: [
-    { key: "label", label: "Label" },
-  ],
-
-  PET_VET_RECORDS: [
-    { key: "label", label: "Label" },
-  ],
   PET_BASICS: [
-    { key: "kind", label: "Kind" },
-    { key: "breed", label: "Breed" },
-    { key: "dobOrAdoptionDate", label: "DOB or adoption date", type: "date" },
+    {
+      key: "isNeutered",
+      label: "Neutered / Spayed",
+      type: "select",
+      options: PET_NEUTERED_OPTIONS,
+    },
     { key: "microchipId", label: "Microchip ID" },
-    { key: "neutered", label: "Neutered", type: "select", options: PET_NEUTERED_OPTIONS },
+    { key: "currentWeightValue", label: "Weight" },
+    {
+      key: "currentWeightUnit",
+      label: "Unit",
+      type: "select",
+      options: PET_WEIGHT_UNIT_OPTIONS,
+    },
+    { key: "notes", label: "Notes", type: "multiline" },
   ],
   PET_CARE_PROVIDERS: [
-    { key: "providerType", label: "Provider type", type: "select", options: PET_PROVIDER_TYPE_OPTIONS },
+    {
+      key: "providerType",
+      label: "Provider type",
+      type: "select",
+      options: PET_PROVIDER_TYPE_OPTIONS,
+    },
     { key: "contactId", label: "Contact ID" },
   ],
   PET_VACCINATIONS: [
@@ -680,12 +830,54 @@ export const FORM_DEFS: Partial<Record<RecordType, FieldDef[]>> = {
     { key: "customerServicePhone", label: "Customer service phone" },
   ],
 
- PREFERENCES: [
-  { key: "likes", label: "Likes", type: "list", placeholder: "Enter a like" },
-  { key: "dislikes", label: "Dislikes", type: "list", placeholder: "Enter a dislike" },
-  { key: "hobbies", label: "Hobbies", type: "list", placeholder: "Enter a hobby" },
-  { key: "favoriteSports", label: "Favorite sports", type: "list", placeholder: "Enter a sport" },
-  { key: "favoriteColors", label: "Favorite colors", type: "list", placeholder: "Enter a color" },
+  PERSON_SIZING_PROFILE: [
+    {
+      key: "sizingReference",
+      label: "Sizing reference",
+      type: "select",
+      options: PERSON_SIZING_REFERENCE_OPTIONS,
+    },
+    {
+      key: "measurementUnit",
+      label: "Measurement unit",
+      type: "select",
+      options: PERSON_MEASUREMENT_UNIT_OPTIONS,
+    },
+    {
+      key: "generalSize",
+      label: "General size",
+      type: "select",
+      options: GENERAL_SIZE_OPTIONS,
+    },
+    { key: "notes", label: "Notes", type: "multiline" },
+  ],
+
+  PREFERENCES: [
+    { key: "likes", label: "Likes", type: "list", placeholder: "Enter a like" },
+    {
+      key: "dislikes",
+      label: "Dislikes",
+      type: "list",
+      placeholder: "Enter a dislike",
+    },
+    {
+      key: "hobbies",
+      label: "Hobbies",
+      type: "list",
+      placeholder: "Enter a hobby",
+    },
+    {
+      key: "favoriteSports",
+      label: "Favorite sports",
+      type: "list",
+      placeholder: "Enter a sport",
+    },
+    {
+      key: "favoriteColors",
+      label: "Favorite colors",
+      type: "list",
+      placeholder: "Enter a color",
+    },
   ],
 
   SIZES: [
@@ -695,7 +887,7 @@ export const FORM_DEFS: Partial<Record<RecordType, FieldDef[]>> = {
       type: "objectList",
       addLabel: "Add Clothing Size",
       itemFields: [
-        { key: "label", label: "Size label" },
+        { key: "label", label: "Size", type: "select", options: GENERAL_SIZE_OPTIONS },
         { key: "brand", label: "Brand" },
       ],
     },
@@ -705,7 +897,10 @@ export const FORM_DEFS: Partial<Record<RecordType, FieldDef[]>> = {
       type: "objectList",
       addLabel: "Add Shoe Size",
       itemFields: [
-        { key: "label", label: "Size label" },
+        { key: "label", label: "Size" },
+        { key: "category", label: "Category", type: "select", options: SHOE_CATEGORY_OPTIONS },
+        { key: "system", label: "System", type: "select", options: SHOE_SYSTEM_OPTIONS },
+        { key: "width", label: "Width", type: "select", options: SHOE_WIDTH_OPTIONS },
         { key: "brand", label: "Brand" },
       ],
     },
@@ -718,7 +913,12 @@ export const FORM_DEFS: Partial<Record<RecordType, FieldDef[]>> = {
       type: "objectList",
       addLabel: "Add Travel ID",
       itemFields: [
-        { key: "type", label: "Program type", type: "select", options: TRAVEL_ID_OPTIONS },
+        {
+          key: "type",
+          label: "Program type",
+          type: "select",
+          options: TRAVEL_ID_OPTIONS,
+        },
         {
           key: "otherProgramName",
           label: "Other program name",
@@ -736,7 +936,12 @@ export const FORM_DEFS: Partial<Record<RecordType, FieldDef[]>> = {
         },
         { key: "expirationDate", label: "Expiration date", type: "date" },
         { key: "loginEmail", label: "Login email", placeholder: "Optional" },
-        { key: "notes", label: "Notes", type: "multiline", placeholder: "Optional" },
+        {
+          key: "notes",
+          label: "Notes",
+          type: "multiline",
+          placeholder: "Optional",
+        },
       ],
     },
   ],
@@ -748,18 +953,32 @@ export const FORM_DEFS: Partial<Record<RecordType, FieldDef[]>> = {
       type: "objectList",
       addLabel: "Add Loyalty Account",
       itemFields: [
-        { key: "programType", label: "Program type", type: "select", options: TRAVEL_LOYALTY_TYPE_OPTIONS },
+        {
+          key: "programType",
+          label: "Program type",
+          type: "select",
+          options: TRAVEL_LOYALTY_TYPE_OPTIONS,
+        },
         { key: "providerName", label: "Provider name" },
         { key: "memberNumber", label: "Member number" },
-        { key: "loginEmailOrUsername", label: "Login email or username", placeholder: "Optional" },
+        {
+          key: "loginEmailOrUsername",
+          label: "Login email or username",
+          placeholder: "Optional",
+        },
         { key: "statusTier", label: "Status / tier", placeholder: "Optional" },
-        { key: "notes", label: "Notes", type: "multiline", placeholder: "Optional" },
+        {
+          key: "notes",
+          label: "Notes",
+          type: "multiline",
+          placeholder: "Optional",
+        },
       ],
     },
   ],
 
   LEGAL_PROPERTY_DOCUMENT: [
-    { key: "documentType", label: "Document type" },
+    { key: "documentType", label: "Document type", type: "select", options: LEGAL_DOCUMENT_TYPE_OPTIONS },
     { key: "title", label: "Title" },
     { key: "ownerEntityId", label: "Owner entity ID" },
     { key: "issueDate", label: "Issue date", type: "date" },
@@ -767,13 +986,182 @@ export const FORM_DEFS: Partial<Record<RecordType, FieldDef[]>> = {
   ],
 
   OTHER_DOCUMENT: [
+    { key: "category", label: "Category", type: "select", options: OTHER_DOCUMENT_CATEGORY_OPTIONS },
     { key: "title", label: "Title" },
   ],
 
-  // Compatibility aliases
+  PET_OVERVIEW: [
+    {
+      key: "gender",
+      label: "Gender",
+      type: "select",
+      options: PET_GENDER_OPTIONS,
+    },
+    { key: "dob", label: "Date of Birth", type: "date" },
+    { key: "adoptionDate", label: "Adoption Date", type: "date" },
+    { key: "notes", label: "Notes", type: "multiline" },
+  ],
+  PET_WEIGHT_ENTRY: [
+    { key: "weightValue", label: "Weight" },
+    {
+      key: "weightUnit",
+      label: "Unit",
+      type: "select",
+      options: PET_WEIGHT_UNIT_OPTIONS,
+    },
+    { key: "measuredAt", label: "Date measured", type: "date" },
+  ],
+  PET_MEDICATIONS: [
+    { key: "medicationName", label: "Medication name" },
+    { key: "dosage", label: "Dosage" },
+    {
+      key: "adminMethod",
+      label: "How administered",
+      type: "select",
+      options: PET_MED_ADMIN_METHOD_OPTIONS,
+    },
+    { key: "scheduleNotes", label: "Schedule / notes", type: "multiline" },
+    {
+      key: "missedDoseAction",
+      label: "If missed dose",
+      type: "select",
+      options: PET_MISSED_DOSE_INSTRUCTION_OPTIONS,
+    },
+    { key: "missedDoseNotes", label: "Missed dose notes", type: "multiline" },
+    {
+      key: "sideEffectSeverity",
+      label: "Side effect severity",
+      type: "select",
+      options: PET_SIDE_EFFECT_SEVERITY_OPTIONS,
+    },
+    {
+      key: "sideEffectsNotes",
+      label: "Side effects to watch for",
+      type: "multiline",
+    },
+  ],
+  PET_DIAGNOSES: [
+    { key: "diagnosisName", label: "Diagnosis" },
+    { key: "date", label: "Date", type: "date" },
+    { key: "notes", label: "Notes", type: "multiline" },
+  ],
+  PET_FEEDING_ROUTINE: [
+    { key: "foodBrand", label: "Food brand" },
+    {
+      key: "foodType",
+      label: "Food type",
+      type: "select",
+      options: PET_FOOD_TYPE_OPTIONS,
+    },
+    { key: "portionAmount", label: "Portion amount" },
+    {
+      key: "portionUnit",
+      label: "Portion unit",
+      type: "select",
+      options: PET_PORTION_UNIT_OPTIONS,
+    },
+    {
+      key: "feedingTimes",
+      label: "Feeding times",
+      type: "multiline",
+      placeholder: "e.g., 7:00 AM, 5:00 PM",
+    },
+    {
+      key: "treatAllowed",
+      label: "Treats allowed",
+      type: "select",
+      options: PET_TREAT_ALLOWED_OPTIONS,
+    },
+    {
+      key: "treatPurpose",
+      label: "Treat purpose",
+      type: "select",
+      options: PET_TREAT_PURPOSE_OPTIONS,
+    },
+    { key: "treatRulesNotes", label: "Treat rules / notes", type: "multiline" },
+  ],
+  PET_BATHROOM_ROUTINE: [
+    { key: "pottyTimesPerDay", label: "Times per day", type: "select", options: PET_POTTY_TIMES_PER_DAY_OPTIONS },
+    {
+      key: "leashHarnessNotes",
+      label: "Leash / harness details",
+      type: "multiline",
+    },
+    {
+      key: "avoidTriggers",
+      label: "Avoid triggers",
+      type: "list",
+      options: PET_AVOID_TRIGGER_OPTIONS,
+    },
+    { key: "avoidTriggersNotes", label: "Trigger notes", type: "multiline" },
+  ],
+  PET_SLEEP_ROUTINE: [
+    {
+      key: "sleepLocation",
+      label: "Sleep location",
+      type: "select",
+      options: PET_SLEEP_LOCATION_OPTIONS,
+    },
+    {
+      key: "crateRule",
+      label: "Crate rules",
+      type: "select",
+      options: PET_CRATE_RULE_OPTIONS,
+    },
+    { key: "bedtimeRoutine", label: "Bedtime routine", type: "multiline" },
+  ],
+  PET_BEHAVIOR_PROFILE: [
+    { key: "fears", label: "Fears", type: "list", options: PET_FEAR_OPTIONS },
+    {
+      key: "separationAnxietyLevel",
+      label: "Separation anxiety",
+      type: "select",
+      options: PET_SEPARATION_ANXIETY_LEVEL_OPTIONS,
+    },
+    {
+      key: "separationAnxietyNotes",
+      label: "Anxiety notes",
+      type: "multiline",
+    },
+    {
+      key: "resourceGuarding",
+      label: "Resource guarding",
+      type: "select",
+      options: PET_RESOURCE_GUARDING_OPTIONS,
+    },
+    {
+      key: "escapeTendency",
+      label: "Escape tendency",
+      type: "select",
+      options: PET_ESCAPE_TENDENCY_OPTIONS,
+    },
+    {
+      key: "aggressionTriggers",
+      label: "Aggression triggers",
+      type: "list",
+      options: PET_AGGRESSION_TRIGGER_OPTIONS,
+    },
+    {
+      key: "strangerIntro",
+      label: "Stranger introduction",
+      type: "select",
+      options: PET_STRANGER_INTRODUCTION_OPTIONS,
+    },
+    {
+      key: "touchSensitivities",
+      label: "Touch sensitivities",
+      type: "list",
+      options: PET_TOUCH_SENSITIVITY_AREA_OPTIONS,
+    },
+  ],
   PET_DOCUMENT: [
     { key: "label", label: "Label" },
-    { key: "documentType", label: "Document type", type: "select", options: PET_DOCUMENT_TYPE_OPTIONS },
+    {
+      key: "documentType",
+      label: "Document type",
+      type: "select",
+      options: PET_DOCUMENT_TYPE_OPTIONS,
+    },
   ],
 };
 
@@ -798,14 +1186,20 @@ function hasMeaningfulValue(value: unknown): boolean {
   if (value == null) return false;
   if (typeof value === "string") return value.trim().length > 0;
   if (typeof value === "number" || typeof value === "boolean") return true;
-  if (Array.isArray(value)) return value.some((item) => hasMeaningfulValue(item));
+  if (Array.isArray(value))
+    return value.some((item) => hasMeaningfulValue(item));
   if (typeof value === "object") {
-    return Object.values(value as Record<string, unknown>).some((item) => hasMeaningfulValue(item));
+    return Object.values(value as Record<string, unknown>).some((item) =>
+      hasMeaningfulValue(item),
+    );
   }
   return false;
 }
 
-function normalizeObjectItemField(itemField: ObjectListItemField, value: unknown): unknown {
+function normalizeObjectItemField(
+  itemField: ObjectListItemField,
+  value: unknown,
+): unknown {
   if (itemField.type === "toggle") {
     if (typeof value === "boolean") return value;
     return toBoolString(value, "false") === "true";
@@ -815,7 +1209,10 @@ function normalizeObjectItemField(itemField: ObjectListItemField, value: unknown
     return toStringList(value);
   }
 
-  if ((itemField.key === "endDate" || itemField.key === "expirationDate") && toString(value).trim() === "") {
+  if (
+    (itemField.key === "endDate" || itemField.key === "expirationDate") &&
+    toString(value).trim() === ""
+  ) {
     return null;
   }
 
@@ -825,9 +1222,12 @@ function normalizeObjectItemField(itemField: ObjectListItemField, value: unknown
 function normalizeObjectListValue(field: FieldDef, raw: unknown): unknown[] {
   if (!field.itemFields || field.itemFields.length === 0) return [];
 
-  const coerceRows = (): Array<Record<string, unknown>> => {
+  const coerceRows = (): Record<string, unknown>[] => {
     if (Array.isArray(raw)) {
-      return raw.filter((row): row is Record<string, unknown> => !!row && typeof row === "object");
+      return raw.filter(
+        (row): row is Record<string, unknown> =>
+          !!row && typeof row === "object",
+      );
     }
 
     if (raw && typeof raw === "object") {
@@ -846,24 +1246,34 @@ function normalizeObjectListValue(field: FieldDef, raw: unknown): unknown[] {
       };
 
       field.itemFields?.forEach((itemField) => {
-        normalized[itemField.key] = normalizeObjectItemField(itemField, row[itemField.key]);
+        normalized[itemField.key] = normalizeObjectItemField(
+          itemField,
+          row[itemField.key],
+        );
       });
 
       return normalized;
     })
     .filter((row) =>
-      field.itemFields?.some((itemField) => hasMeaningfulValue(row[itemField.key]))
+      field.itemFields?.some((itemField) =>
+        hasMeaningfulValue(row[itemField.key]),
+      ),
     );
 }
 
-export function normalizeRecordDataForSave(recordType: RecordType, input: RecordData): Record<string, unknown> {
+export function normalizeRecordDataForSave(
+  recordType: RecordType,
+  input: RecordData,
+): Record<string, unknown> {
   const base = deepClone(CANONICAL_DEFAULTS[recordType] ?? {});
   if (!input || typeof input !== "object") return base;
 
   const fields = FORM_DEFS[recordType] ?? [];
 
   fields.forEach((field) => {
-    const raw = (input as Record<string, unknown>)[field.key] ?? getByPath(input, field.key);
+    const raw =
+      (input as Record<string, unknown>)[field.key] ??
+      getByPath(input, field.key);
     if (raw === undefined) return;
 
     if (field.type === "objectList") {
@@ -882,7 +1292,10 @@ export function normalizeRecordDataForSave(recordType: RecordType, input: Record
   return base;
 }
 
-export function normalizeRecordDataForEdit(recordType: RecordType, input: RecordData): Record<string, unknown> {
+export function normalizeRecordDataForEdit(
+  recordType: RecordType,
+  input: RecordData,
+): Record<string, unknown> {
   const canonical = normalizeRecordDataForSave(recordType, input ?? {});
   const result: Record<string, unknown> = { ...canonical };
 
@@ -906,17 +1319,26 @@ export function normalizeRecordDataForEdit(recordType: RecordType, input: Record
 function normalizeString(value: unknown): string {
   if (value == null) return "";
   if (typeof value === "string") return value.trim();
-  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  if (typeof value === "number" || typeof value === "boolean")
+    return String(value);
   return "";
 }
 
 function isDateLikeField(field: FieldDef | ObjectListItemField): boolean {
   if (field.type === "date") return true;
-  const text = `${field.key} ${resolveLabel(field.label)} ${field.placeholder ?? ""}`.toLowerCase();
-  return text.includes("yyyy-mm-dd") || text.includes(" date") || text.includes("dob");
+  const text =
+    `${field.key} ${resolveLabel(field.label)} ${field.placeholder ?? ""}`.toLowerCase();
+  return (
+    text.includes("yyyy-mm-dd") ||
+    text.includes(" date") ||
+    text.includes("dob")
+  );
 }
 
-function stringifyFieldValue(field: FieldDef | ObjectListItemField, value: unknown): string {
+function stringifyFieldValue(
+  field: FieldDef | ObjectListItemField,
+  value: unknown,
+): string {
   if (value == null) return "";
 
   if (field.type === "toggle") {
@@ -941,8 +1363,12 @@ function stringifyFieldValue(field: FieldDef | ObjectListItemField, value: unkno
   }
 
   if (Array.isArray(value)) {
-    if (value.length > 0 && typeof value[0] === "object") return `${value.length} items`;
-    return value.map((item) => normalizeString(item)).filter(Boolean).join(", ");
+    if (value.length > 0 && typeof value[0] === "object")
+      return `${value.length} items`;
+    return value
+      .map((item) => normalizeString(item))
+      .filter(Boolean)
+      .join(", ");
   }
 
   if (typeof value === "object") {
@@ -959,7 +1385,10 @@ function stringifyFieldValue(field: FieldDef | ObjectListItemField, value: unkno
   return "";
 }
 
-export function getFieldsForRecordType(recordType: RecordType, data?: RecordData): FieldDef[] {
+export function getFieldsForRecordType(
+  recordType: RecordType,
+  data?: RecordData,
+): FieldDef[] {
   const fields = FORM_DEFS[recordType] ?? [];
   if (!data) return fields;
 
@@ -970,12 +1399,18 @@ export function getFieldsForRecordType(recordType: RecordType, data?: RecordData
   });
 }
 
-export function buildInitialData(recordType: RecordType): Record<string, unknown> {
+export function buildInitialData(
+  recordType: RecordType,
+): Record<string, unknown> {
   return deepClone(CANONICAL_DEFAULTS[recordType] ?? {});
 }
 
-export function defaultTitleForRecordType(recordType: RecordType, data?: RecordData): string {
-  const metaLabel = getRecordMeta(recordType)?.label ?? recordType.replaceAll("_", " ");
+export function defaultTitleForRecordType(
+  recordType: RecordType,
+  data?: RecordData,
+): string {
+  const metaLabel =
+    getRecordMeta(recordType)?.label ?? recordType.replaceAll("_", " ");
   if (!data || typeof data !== "object") return metaLabel;
 
   const titleCandidates = [
@@ -999,12 +1434,15 @@ export function defaultTitleForRecordType(recordType: RecordType, data?: RecordD
   return metaLabel;
 }
 
-export function buildDisplayRows(recordType: RecordType, data?: RecordData): Array<{ label: string; value: string }> {
+export function buildDisplayRows(
+  recordType: RecordType,
+  data?: RecordData,
+): { label: string; value: string }[] {
   if (!data || typeof data !== "object") return [];
 
   const fields = getFieldsForRecordType(recordType, data);
   if (fields.length > 0) {
-    const rows: Array<{ label: string; value: string }> = [];
+    const rows: { label: string; value: string }[] = [];
 
     fields.forEach((field) => {
       const fieldValue = getByPath(data, field.key);
@@ -1015,7 +1453,10 @@ export function buildDisplayRows(recordType: RecordType, data?: RecordData): Arr
 
       const valueText = stringifyFieldValue(field, fieldValue);
       if (valueText.length > 0) {
-        rows.push({ label: resolveLabel(field.label, data as Record<string, unknown>), value: valueText });
+        rows.push({
+          label: resolveLabel(field.label, data as Record<string, unknown>),
+          value: valueText,
+        });
       }
     });
 
@@ -1024,7 +1465,9 @@ export function buildDisplayRows(recordType: RecordType, data?: RecordData): Arr
 
   return Object.entries(data)
     .map(([key, value]) => ({
-      label: key.replace(/([A-Z])/g, " $1").replace(/^./, (s) => s.toUpperCase()),
+      label: key
+        .replace(/([A-Z])/g, " $1")
+        .replace(/^./, (s) => s.toUpperCase()),
       value: stringifyFieldValue({ key, label: key }, value),
     }))
     .filter((row) => row.value.length > 0);
@@ -1036,7 +1479,26 @@ export type DisplayTable = {
   rows: string[][];
 };
 
-export function buildDisplayTables(recordType: RecordType, data?: RecordData): DisplayTable[] {
+export type DisplayKV = { label: string; value: string };
+
+export type DisplayCardTable = {
+  label: string; // section title (e.g., "Prescriptions")
+  items: {
+    id: string; // stable row id
+    title?: string; // optional short title for the card
+    rows: DisplayKV[]; // stacked rows (no gridlines)
+  }[];
+};
+
+/**
+ * Mobile-friendly “tables”:
+ * - objectList becomes a list of cards
+ * - each card contains stacked label/value rows
+ */
+export function buildDisplayTables(
+  recordType: RecordType,
+  data?: RecordData,
+): DisplayCardTable[] {
   if (!data || typeof data !== "object") return [];
 
   const fields = getFieldsForRecordType(recordType, data);
@@ -1048,24 +1510,61 @@ export function buildDisplayTables(recordType: RecordType, data?: RecordData): D
       const rawItems = getByPath(data, field.key);
       const items = Array.isArray(rawItems) ? rawItems : [];
       const itemFields = field.itemFields ?? [];
-      const columns = itemFields.map((itemField) => resolveLabel(itemField.label, data as Record<string, unknown>));
 
-      const rows = items
-        .map((item) => {
+      const cardItems = items
+        .map((item, idx) => {
           if (!item || typeof item !== "object") return null;
-          const cells = itemFields.map((itemField) =>
-            stringifyFieldValue(itemField, (item as Record<string, unknown>)[itemField.key])
-          );
-          const hasValue = cells.some((cell) => cell.trim().length > 0);
-          return hasValue ? cells : null;
+
+          const obj = item as Record<string, unknown>;
+
+          const rows: DisplayKV[] = itemFields
+            .map((itemField) => {
+              // If your objectList supports showWhen on itemFields (you have it typed),
+              // respect it here:
+              if (itemField.showWhen) {
+                const actual = normalizeString(obj[itemField.showWhen.key]);
+                if (actual !== itemField.showWhen.equals) return null;
+              }
+
+              const label = resolveLabel(itemField.label, obj);
+              const valueText = stringifyFieldValue(
+                itemField,
+                obj[itemField.key],
+              );
+
+              if (!valueText || valueText.trim().length === 0) return null;
+              return { label, value: valueText };
+            })
+            .filter((r): r is DisplayKV => !!r);
+
+          if (rows.length === 0) return null;
+
+          // try to pick a short “title” for the card (nice in a list)
+          const titleCandidateKeys = [
+            "label",
+            "title",
+            "name",
+            "providerName",
+            "vaccineName",
+            "medicationName",
+          ];
+          const title =
+            titleCandidateKeys
+              .map((k) => normalizeString(obj[k]))
+              .find((v) => v.length > 0) || undefined;
+
+          const id = normalizeString(obj.id) || `${field.key}_${idx}`;
+
+          return { id, title, rows };
         })
-        .filter((row): row is string[] => Array.isArray(row));
+        .filter((x): x is NonNullable<typeof x> => !!x);
+
+      if (cardItems.length === 0) return null;
 
       return {
         label: resolveLabel(field.label, data as Record<string, unknown>),
-        columns,
-        rows,
+        items: cardItems,
       };
     })
-    .filter((table) => table.rows.length > 0);
+    .filter((t): t is NonNullable<typeof t> => !!t);
 }

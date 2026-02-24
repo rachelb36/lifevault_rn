@@ -2,7 +2,9 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { RecordType } from "@/domain/records/recordTypes";
 import { LifeVaultRecord } from "@/domain/records/record.model";
+import { normalizeAttachmentRefs } from "@/domain/documents/attachments";
 import { normalizeRecordDataForEdit, normalizeRecordDataForSave } from "@/features/records/forms/formDefs";
+import { ensureDocumentsStorageReady } from "@/features/documents/data/documentsStorage";
 
 export type StoredRecord = LifeVaultRecord & {
   payload?: Record<string, unknown>;
@@ -29,13 +31,14 @@ function normalizeRecord(r: any, entityId: string): StoredRecord {
     isPrivate: Boolean(r?.isPrivate),
     data,
     payload,
-    attachments: Array.isArray(r?.attachments) ? r.attachments : [],
+    attachments: normalizeAttachmentRefs(r?.attachments),
     createdAt: String(r?.createdAt || r?.updatedAt || nowIso()),
     updatedAt: String(r?.updatedAt || nowIso()),
   };
 }
 
 export async function listRecordsForEntity(entityId: string): Promise<StoredRecord[]> {
+  await ensureDocumentsStorageReady();
   const raw = await AsyncStorage.getItem(keyForEntity(entityId));
   const parsed = raw ? JSON.parse(raw) : [];
   const list = Array.isArray(parsed) ? parsed : [];
@@ -46,6 +49,7 @@ export async function listRecordsForEntity(entityId: string): Promise<StoredReco
 }
 
 export async function getRecordById(entityId: string, recordId: string): Promise<StoredRecord | null> {
+  await ensureDocumentsStorageReady();
   const list = await listRecordsForEntity(entityId);
   return list.find((r) => r.id === recordId) ?? null;
 }
@@ -54,6 +58,7 @@ export async function upsertRecordForEntity(
   entityId: string,
   record: Partial<StoredRecord> & Pick<StoredRecord, "id" | "recordType"> & { updatedAt?: string | null; createdAt?: string | null }
 ): Promise<StoredRecord> {
+  await ensureDocumentsStorageReady();
   const list = await listRecordsForEntity(entityId);
   const existing = list.find((r) => r.id === record.id);
   const rawInput =
@@ -70,7 +75,7 @@ export async function upsertRecordForEntity(
     entityId,
     data,
     payload,
-    attachments: Array.isArray(record.attachments) ? record.attachments : [],
+    attachments: normalizeAttachmentRefs(record.attachments),
     createdAt: existing?.createdAt || record.createdAt || nowIso(),
     updatedAt: record.updatedAt || nowIso(),
   };

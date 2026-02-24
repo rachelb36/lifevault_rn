@@ -1,14 +1,5 @@
 import type { RecordType } from "./recordTypes";
-
-export type Attachment = {
-  id: string;
-  uri: string;
-  mimeType: string;
-  fileName: string;
-  source?: "camera" | "library" | "files";
-  createdAt: string;
-  tags?: string[];
-};
+import type { RecordAttachmentRef } from "@/domain/documents/attachments";
 
 export type LifeVaultRecord = {
   id: string;
@@ -19,7 +10,7 @@ export type LifeVaultRecord = {
 
   data: Record<string, unknown>;
 
-  attachments: Attachment[];   // ✅ universal
+  attachments: RecordAttachmentRef[]; // document references
 
   createdAt: string;
   updatedAt: string;

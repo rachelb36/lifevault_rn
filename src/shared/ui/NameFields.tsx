@@ -12,6 +12,8 @@ type NameFieldsProps = {
   lastNameLabel?: string;
   preferredNameLabel?: string;
   preferredNamePlaceholder?: string;
+  firstNameError?: string;
+  lastNameError?: string;
 };
 
 export default function NameFields({
@@ -25,6 +27,8 @@ export default function NameFields({
   lastNameLabel = "Last Name *",
   preferredNameLabel = "Preferred Name (optional)",
   preferredNamePlaceholder = "What should we call them?",
+  firstNameError,
+  lastNameError,
 }: NameFieldsProps) {
   return (
     <View className="gap-4">
@@ -33,13 +37,16 @@ export default function NameFields({
           {firstNameLabel}
         </Text>
         <TextInput
-          className="bg-card border border-border rounded-xl px-4 py-3 text-foreground text-base"
+          className={`bg-card border rounded-xl px-4 py-3 text-foreground text-base ${firstNameError ? "border-destructive" : "border-border"}`}
           placeholder="Enter first name"
-          placeholderTextColor="rgb(113 113 122)"
+          placeholderTextColor="rgb(162 162 168)"
           value={firstName}
           onChangeText={onFirstNameChange}
           autoCapitalize="words"
         />
+        {firstNameError ? (
+          <Text className="mt-1 text-xs text-destructive">{firstNameError}</Text>
+        ) : null}
       </View>
 
       <View>
@@ -47,13 +54,16 @@ export default function NameFields({
           {lastNameLabel}
         </Text>
         <TextInput
-          className="bg-card border border-border rounded-xl px-4 py-3 text-foreground text-base"
+          className={`bg-card border rounded-xl px-4 py-3 text-foreground text-base ${lastNameError ? "border-destructive" : "border-border"}`}
           placeholder="Enter last name"
-          placeholderTextColor="rgb(113 113 122)"
+          placeholderTextColor="rgb(162 162 168)"
           value={lastName}
           onChangeText={onLastNameChange}
           autoCapitalize="words"
         />
+        {lastNameError ? (
+          <Text className="mt-1 text-xs text-destructive">{lastNameError}</Text>
+        ) : null}
       </View>
 
       <View>
@@ -63,7 +73,7 @@ export default function NameFields({
         <TextInput
           className="bg-card border border-border rounded-xl px-4 py-3 text-foreground text-base"
           placeholder={preferredNamePlaceholder}
-          placeholderTextColor="rgb(113 113 122)"
+          placeholderTextColor="rgb(162 162 168)"
           value={preferredName}
           onChangeText={onPreferredNameChange}
           autoCapitalize="words"
