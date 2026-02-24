@@ -41,6 +41,7 @@ function mkId(prefix: "doc" | "ocr"): string {
 
 type RuntimeOcrResult =
   | string
+  | string[]
   | {
       text?: string;
       lines?: string[];
@@ -48,9 +49,7 @@ type RuntimeOcrResult =
     };
 
 type RuntimeOcrModule = {
-  extractFromImageAsync?: (uri: string) => Promise<RuntimeOcrResult>;
-  extractTextAsync?: (uri: string) => Promise<RuntimeOcrResult>;
-  detectTextAsync?: (uri: string) => Promise<RuntimeOcrResult>;
+  extractTextFromImage?: (uri: string) => Promise<RuntimeOcrResult>;
 };
 
 let OCR_MODULE: RuntimeOcrModule | null = null;
@@ -68,6 +67,12 @@ function normalizeRuntimeOcrText(input: RuntimeOcrResult): { text: string; lines
       .map((line) => line.trim())
       .filter(Boolean);
     return { text: input, lines };
+  }
+
+  // expo-text-extractor returns string[]
+  if (Array.isArray(input)) {
+    const lines = input.map((s) => String(s || "").trim()).filter(Boolean);
+    return { text: lines.join("\n"), lines };
   }
 
   const text = String(input.text || "").trim();
@@ -462,10 +467,7 @@ export async function runOcr(documentId: string): Promise<VaultDocument> {
     return upsertDocument({ ...doc, ocr: unsupported });
   }
 
-  const run =
-    OCR_MODULE?.extractFromImageAsync ||
-    OCR_MODULE?.extractTextAsync ||
-    OCR_MODULE?.detectTextAsync;
+  const run = OCR_MODULE?.extractTextFromImage;
 
   if (!run) {
     const failed: DocumentOcrResult = {

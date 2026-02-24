@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "expo-nativewind",
+    "name": "LifeVault",
     "slug": "expo-nativewind",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -45,11 +45,17 @@
         }
       ],
       "expo-font",
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "LifeVault needs access to your photos to attach them to records.",
+          "cameraPermission": "LifeVault needs access to your camera to capture document photos."
+        }
+      ]
     ],
     "experiments": {
-      "typedRoutes": true,
-      "reactCompiler": true
+      "typedRoutes": true
     },
     "extra": {
       "EXPO_PUBLIC_GRAPHQL_URL": "http://127.0.0.1:4000/graphql",
