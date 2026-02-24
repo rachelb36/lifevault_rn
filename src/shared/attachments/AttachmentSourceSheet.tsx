@@ -68,7 +68,7 @@ export default function AttachmentSourceSheet({
   const pickPhotoLibrary = React.useCallback(async () => {
     try {
       const res = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ["images"],
         quality: 0.9,
       });
       if (res.canceled) return;
@@ -96,7 +96,7 @@ export default function AttachmentSourceSheet({
         return;
       }
       const res = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ["images"],
         quality: 0.9,
       });
       if (res.canceled) return;
