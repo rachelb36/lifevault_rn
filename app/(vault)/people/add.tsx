@@ -13,7 +13,7 @@
  * Route: /(vault)/people/add?id=<optional>
  */
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Image, ScrollView, Text, TouchableOpacity, View } from "react-native";
+import { Alert, Image, Linking, ScrollView, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ArrowLeft, Calendar, Camera, User as UserIcon } from "lucide-react-native";
@@ -27,8 +27,9 @@ import NameFields from "@/shared/ui/NameFields";
 import { toIsoDateOnly, formatDateLabel } from "@/shared/utils/date";
 import { RELATIONSHIP_OPTIONS, type RelationshipOption } from "@/features/people/constants/options";
 import { getLocalOnlyMode } from "@/shared/utils/localStorage";
-import { listPeople, upsertPerson } from "@/features/people/data/peopleStorage";
-import type { PersonProfileV1 } from "@/features/people/domain/person.schema";
+import { listPeople } from "@/features/people/data/peopleStorage";
+import { upsertProfile } from "@/features/profiles/data/storage";
+import type { PersonProfile } from "@/features/people/domain/person.model";
 
 const MY_VAULTS = gql`
   query MyVaults {
@@ -190,7 +191,18 @@ export default function AddDependentScreen() {
       try {
         const perm = await ImagePicker.requestCameraPermissionsAsync();
         if (!perm.granted) {
-          Alert.alert("Camera access needed", "Please allow camera access in Settings.");
+          if (!perm.canAskAgain) {
+            Alert.alert(
+              "Camera access needed",
+              "Camera permission was denied. Please enable it in Settings.",
+              [
+                { text: "Cancel", style: "cancel" },
+                { text: "Open Settings", onPress: () => Linking.openSettings() },
+              ],
+            );
+          } else {
+            Alert.alert("Camera access needed", "Please allow camera access to take a photo.");
+          }
           return;
         }
         const res = await ImagePicker.launchCameraAsync({
@@ -304,12 +316,12 @@ export default function AddDependentScreen() {
     if (!validate()) return;
 
     try {
-      let savedWithNetworkFallback = false;
       const timestamp = new Date().toISOString();
+      const localOnly = await getLocalOnlyMode();
 
-      const person: PersonProfileV1 = {
-        schemaVersion: 1,
+      const person: PersonProfile = {
         id: editId || `person_${Date.now()}`,
+        profileType: "PERSON",
         firstName: firstName.trim(),
         lastName: lastName.trim(),
         preferredName: preferredName.trim() || undefined,
@@ -321,35 +333,37 @@ export default function AddDependentScreen() {
         updatedAt: timestamp,
       };
 
-      if (!isEditing) {
-        const localOnly = await getLocalOnlyMode();
-
-        if (!localOnly) {
-          try {
-            const vaultId = await getOrCreateVaultId();
-            const rel = getRelationshipInput();
-            const res = await createEntity({
-              variables: {
-                input: {
-                  vaultId,
-                  entityType: "PERSON",
-                  displayName: `${person.firstName} ${person.lastName}`.trim(),
-                  relationshipType: rel.type,
-                  relationshipOtherLabel: (rel as any).other ?? null,
-                  dateOfBirth: dobDate ? toUtcMidnightIso(dobDate) : null,
-                },
+      if (!isEditing && !localOnly) {
+        // Server mode: create entity on backend first. On failure, stop — do NOT write locally.
+        try {
+          const vaultId = await getOrCreateVaultId();
+          const rel = getRelationshipInput();
+          const res = await createEntity({
+            variables: {
+              input: {
+                vaultId,
+                entityType: "PERSON",
+                displayName: `${person.firstName} ${person.lastName}`.trim(),
+                relationshipType: rel.type,
+                relationshipOtherLabel: (rel as any).other ?? null,
+                dateOfBirth: dobDate ? toUtcMidnightIso(dobDate) : null,
               },
-            });
+            },
+          });
 
-            const created = res.data?.createEntity;
-            if (created?.id) person.id = created.id;
-          } catch {
-            savedWithNetworkFallback = true;
-          }
+          const created = res.data?.createEntity;
+          if (created?.id) person.id = created.id;
+        } catch (networkErr: any) {
+          Alert.alert(
+            "Save failed",
+            networkErr?.message || "Could not reach the server. Please check your connection and try again.",
+          );
+          return;
         }
       }
 
-      await upsertPerson(person);
+      // Local-only mode OR server succeeded: persist locally
+      await upsertProfile(person);
 
       if (isPrimaryFlow) {
         await Promise.allSettled([
@@ -361,15 +375,7 @@ export default function AddDependentScreen() {
         ]);
       }
 
-      const destination = `/profile-saved?type=dependent&id=${person.id}`;
-      if (savedWithNetworkFallback) {
-        Alert.alert("Saved locally", "Couldn't reach the server, but your person was saved on this device.", [
-          { text: "OK", onPress: () => router.replace(destination as any) },
-        ]);
-        return;
-      }
-
-      router.replace(destination as any);
+      router.replace(`/profile-saved?type=dependent&id=${person.id}` as any);
     } catch (e: any) {
       Alert.alert("Save failed", e?.message ?? "Unknown error");
     }

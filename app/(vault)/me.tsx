@@ -1,6 +1,6 @@
 // app/(vault)/me.tsx
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Alert } from "react-native";
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Alert, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { User, Smartphone, ArrowRight, ArrowLeft, Share2 } from "lucide-react-native";
@@ -18,7 +18,6 @@ import RecordSection from "@/features/records/ui/RecordSection";
 import { PERSON_CATEGORY_ORDER, RecordCategory } from "@/domain/records/recordCategories";
 import type { LifeVaultRecord } from "@/domain/records/record.model";
 import { listRecordsForEntity } from "@/features/records/data/storage";
-import type { Attachment } from "@/shared/attachments/attachment.model";
 
 const ME = gql`
   query Me {
@@ -39,17 +38,14 @@ export default function UserDetailScreen() {
   const { mode } = useLocalSearchParams();
   const isCompleteMode = mode === "complete";
 
-  const { data, loading } = useQuery(ME, { fetchPolicy: "network-only" });
-
   const [localUser, setLocalUserState] = useState<any>(null);
-  const [localOnly, setLocalOnly] = useState(false);
+  const [localOnly, setLocalOnly] = useState<boolean | null>(null);
   const [showShareModal, setShowShareModal] = useState(false);
   const [primaryDependentId, setPrimaryDependentId] = useState<string | null>(null);
+  const [avatarUri, setAvatarUri] = useState<string | null>(null);
 
   // Records
   const [records, setRecords] = useState<LifeVaultRecord[]>([]);
-
-  const user = localOnly ? localUser : data?.me;
 
   // Determine local-only mode + pull local user
   useEffect(() => {
@@ -73,6 +69,14 @@ export default function UserDetailScreen() {
     };
   }, []);
 
+  // Skip the network query entirely in local-only mode (or while mode is still resolving)
+  const { data, loading } = useQuery(ME, {
+    fetchPolicy: "network-only",
+    skip: localOnly !== false,
+  });
+
+  const user = localOnly ? localUser : data?.me;
+
   // Resolve the personId we should use for record routes/storage
   const personId = useMemo(() => {
     const id = user?.id;
@@ -90,6 +94,7 @@ export default function UserDetailScreen() {
   useFocusEffect(
     useCallback(() => {
       refreshRecords();
+      SecureStore.getItemAsync("userPhotoUri").then((uri) => setAvatarUri(uri || null));
     }, [refreshRecords])
   );
 
@@ -149,8 +154,8 @@ export default function UserDetailScreen() {
     </View>
   );
 
-  // Loading state
-  if (loading) {
+  // Loading state (includes waiting for local-only mode to resolve)
+  if (localOnly === null || loading) {
     return (
       <KeyboardDismiss>
         <SafeAreaView className="flex-1 bg-background">
@@ -190,9 +195,17 @@ export default function UserDetailScreen() {
 
             {/* Hero */}
             <View className="items-center mb-8 mt-2">
-              <View className="w-20 h-20 bg-primary/10 rounded-full items-center justify-center mb-5">
-                <User className="text-primary" size={40} />
-              </View>
+              {avatarUri ? (
+                <Image
+                  source={{ uri: avatarUri }}
+                  className="w-20 h-20 rounded-full mb-5"
+                  style={{ borderWidth: 3, borderColor: "rgb(244 244 245)" }}
+                />
+              ) : (
+                <View className="w-20 h-20 bg-primary/10 rounded-full items-center justify-center mb-5">
+                  <User className="text-primary" size={40} />
+                </View>
+              )}
 
               <Text className="text-3xl font-bold text-foreground text-center mb-2">
                 {displayName || "Your Profile"}
@@ -307,20 +320,12 @@ export default function UserDetailScreen() {
                     key={category}
                     category={category as RecordCategory}
                     records={records}
-                    onAdd={(recordType, initialAttachment?: Attachment) => {
+                    onAdd={(recordType) => {
                       router.push({
                         pathname: "/(vault)/people/[personId]/records/add",
                         params: {
                           personId,
                           recordType,
-                          ...(initialAttachment
-                            ? {
-                                initialAttachmentUri: initialAttachment.uri,
-                                initialAttachmentName: initialAttachment.fileName,
-                                initialAttachmentMime: initialAttachment.mimeType,
-                                initialAttachmentSource: initialAttachment.source,
-                              }
-                            : {}),
                         },
                       } as any);
                     }}
@@ -330,22 +335,7 @@ export default function UserDetailScreen() {
                         params: { personId, recordId: record.id },
                       } as any);
                     }}
-                    onOpen={(record, initialAttachment?: Attachment, replaceExistingAttachment?: boolean) => {
-                      if (initialAttachment) {
-                        router.push({
-                          pathname: "/(vault)/people/[personId]/records/[recordId]/edit",
-                          params: {
-                            personId,
-                            recordId: record.id,
-                            initialAttachmentUri: initialAttachment.uri,
-                            initialAttachmentName: initialAttachment.fileName,
-                            initialAttachmentMime: initialAttachment.mimeType,
-                            initialAttachmentSource: initialAttachment.source,
-                            replaceAttachment: replaceExistingAttachment ? "true" : "false",
-                          },
-                        } as any);
-                        return;
-                      }
+                    onOpen={(record) => {
                       router.push({
                         pathname: "/(vault)/people/[personId]/records/[recordId]",
                         params: { personId, recordId: record.id },
