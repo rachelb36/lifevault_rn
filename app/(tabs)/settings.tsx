@@ -17,6 +17,7 @@ import {
 } from 'lucide-react-native';
 import { cssInterop } from 'nativewind';
 import { useColorScheme } from '@/lib/useColorScheme';
+import { useUserName } from '@/shared/hooks/useUserName';
 
 // Enable className styling for icons
 cssInterop(Shield, { className: { target: 'style', nativeStyleToProp: { color: true } } });
@@ -35,6 +36,7 @@ cssInterop(AlertCircle, { className: { target: 'style', nativeStyleToProp: { col
 export default function SettingsScreen() {
   const { colorScheme, setColorScheme } = useColorScheme();
   const isDark = colorScheme === 'dark';
+  const { displayName } = useUserName();
   
   const [biometricEnabled, setBiometricEnabled] = useState(true);
 
@@ -111,7 +113,9 @@ export default function SettingsScreen() {
     <SafeAreaView className="flex-1 bg-background">
       {/* Header */}
       <View className="px-6 py-4">
-        <Text className="text-2xl font-bold text-foreground">Settings</Text>
+        <Text className="text-2xl font-bold text-foreground">
+          {displayName ? `${displayName}'s Settings` : "Settings"}
+        </Text>
       </View>
 
       <ScrollView 

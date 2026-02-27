@@ -52,13 +52,18 @@
           "photosPermission": "LifeVault needs access to your photos to attach them to records.",
           "cameraPermission": "LifeVault needs access to your camera to capture document photos."
         }
+      ],
+      [
+        "expo-contacts",
+        {
+          "contactsPermission": "LifeVault needs access to your contacts to import contact information."
+        }
       ]
     ],
     "experiments": {
       "typedRoutes": true
     },
     "extra": {
-      "EXPO_PUBLIC_GRAPHQL_URL": "http://127.0.0.1:4000/graphql",
       "router": {},
       "eas": {
         "projectId": "afc88b5a-4429-4aad-85d5-7df6ead972ad"

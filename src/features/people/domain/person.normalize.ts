@@ -29,7 +29,7 @@ export function normalizePersonList(raw: unknown): PersonProfileV1[] {
         preferredName: asString(p?.preferredName).trim() || undefined,
         relationship: asString(p?.relationship).trim() || "Other",
         dob: asString(p?.dob) || undefined,
-        avatarUri: asString(p?.avatarUri || p?.avatar) || undefined,
+        avatarUri: asString(p?.avatarUri) || undefined,
         isPrimary: Boolean(p?.isPrimary),
         createdAt: asString(p?.createdAt) || nowIso(),
         updatedAt: asString(p?.updatedAt) || nowIso(),

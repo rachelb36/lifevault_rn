@@ -53,6 +53,7 @@ export default function VaultLayout() {
   // Neutral, Apple-ish tab colors
   const activeColor = isDark ? "#E5E7EB" : "#111827";
   const inactiveColor = isDark ? "#9CA3AF" : "#6B7280";
+  const backgroundColor = isDark ? "rgb(15 23 42)" : "rgb(248 250 252)";
 
   const activeKey = useMemo(
     () => activeKeyFromSegments(segments as unknown as string[]),
@@ -63,7 +64,7 @@ export default function VaultLayout() {
     <PaperProvider theme={paperTheme}>
       <View className="flex-1 bg-background">
         {/* Keep this layout “headless” — screens control their own headers */}
-        <Stack screenOptions={{ headerShown: false }} />
+        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor } }} />
 
         {/* Bottom nav */}
         <View

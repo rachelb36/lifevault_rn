@@ -1,21 +1,39 @@
 // app/(vault)/me.tsx
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Alert, Image } from "react-native";
+import {
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+  ActivityIndicator,
+  Alert,
+  Image,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { User, Smartphone, ArrowRight, ArrowLeft, Share2 } from "lucide-react-native";
+import {
+  User,
+  Smartphone,
+  ArrowRight,
+  ArrowLeft,
+  Share2,
+} from "lucide-react-native";
 import { gql, useQuery } from "@apollo/client";
 import * as SecureStore from "expo-secure-store";
 import { useFocusEffect } from "@react-navigation/native";
 
 import KeyboardDismiss from "@/shared/ui/KeyboardDismiss";
-import { getLocalOnlyMode, getLocalUser } from "@/shared/utils/localStorage";
+import { isLocalOnly } from "@/shared/config/dataMode";
+import { getLocalUser } from "@/shared/utils/localStorage";
 import ProfileShareModal from "@/shared/ui/ProfileShareModal";
 import { ShareSection, shareProfilePdf } from "@/shared/share/profilePdf";
 import { listPeople } from "@/features/people/data/peopleStorage";
 
 import RecordSection from "@/features/records/ui/RecordSection";
-import { PERSON_CATEGORY_ORDER, RecordCategory } from "@/domain/records/recordCategories";
+import {
+  PERSON_CATEGORY_ORDER,
+  RecordCategory,
+} from "@/domain/records/recordCategories";
 import type { LifeVaultRecord } from "@/domain/records/record.model";
 import { listRecordsForEntity } from "@/features/records/data/storage";
 
@@ -41,7 +59,9 @@ export default function UserDetailScreen() {
   const [localUser, setLocalUserState] = useState<any>(null);
   const [localOnly, setLocalOnly] = useState<boolean | null>(null);
   const [showShareModal, setShowShareModal] = useState(false);
-  const [primaryDependentId, setPrimaryDependentId] = useState<string | null>(null);
+  const [primaryDependentId, setPrimaryDependentId] = useState<string | null>(
+    null,
+  );
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
 
   // Records
@@ -52,7 +72,7 @@ export default function UserDetailScreen() {
     let cancelled = false;
 
     const load = async () => {
-      const local = await getLocalOnlyMode();
+      const local = await isLocalOnly();
       if (cancelled) return;
 
       setLocalOnly(local);
@@ -70,8 +90,9 @@ export default function UserDetailScreen() {
   }, []);
 
   // Skip the network query entirely in local-only mode (or while mode is still resolving)
-  const { data, loading } = useQuery(ME, {
+  const { data, loading, error } = useQuery(ME, {
     fetchPolicy: "network-only",
+    errorPolicy: "all",
     skip: localOnly !== false,
   });
 
@@ -86,17 +107,43 @@ export default function UserDetailScreen() {
   // Load/refresh records
   const refreshRecords = useCallback(async () => {
     if (!personId) return;
-    const next = await listUserRecords(personId);
-    setRecords(next);
-  }, [personId]);
+    try {
+      const next = await listUserRecords(personId);
+      setRecords(next);
+    } catch (e: any) {
+      const msg = String(e?.message || "");
+      if (/not authenticated/i.test(msg)) {
+        await Promise.allSettled([
+          SecureStore.deleteItemAsync("accessToken"),
+          SecureStore.deleteItemAsync("refreshToken"),
+        ]);
+        router.replace("/login");
+      }
+    }
+  }, [personId, router]);
 
   // Refresh when screen focused
   useFocusEffect(
     useCallback(() => {
       refreshRecords();
-      SecureStore.getItemAsync("userPhotoUri").then((uri) => setAvatarUri(uri || null));
-    }, [refreshRecords])
+      SecureStore.getItemAsync("userPhotoUri").then((uri) =>
+        setAvatarUri(uri || null),
+      );
+    }, [refreshRecords]),
   );
+
+  useEffect(() => {
+    if (localOnly !== false || !error) return;
+    const msg = String(error.message || "");
+    if (!/not authenticated/i.test(msg)) return;
+
+    Promise.allSettled([
+      SecureStore.deleteItemAsync("accessToken"),
+      SecureStore.deleteItemAsync("refreshToken"),
+    ]).finally(() => {
+      router.replace("/login");
+    });
+  }, [error, localOnly, router]);
 
   useFocusEffect(
     useCallback(() => {
@@ -104,14 +151,18 @@ export default function UserDetailScreen() {
       const loadPrimaryDependent = async () => {
         const list = await listPeople();
         if (cancelled) return;
-        const primary = list.find((d) => !!d.isPrimary || String(d.relationship || "").toLowerCase() === "self");
+        const primary = list.find(
+          (d) =>
+            !!d.isPrimary ||
+            String(d.relationship || "").toLowerCase() === "self",
+        );
         setPrimaryDependentId(primary?.id ? String(primary.id) : null);
       };
       loadPrimaryDependent();
       return () => {
         cancelled = true;
       };
-    }, [])
+    }, []),
   );
 
   // Display name helper (server has `name`; local-only uses first/last/preferredName)
@@ -132,7 +183,10 @@ export default function UserDetailScreen() {
       {
         id: "basic",
         title: "Basic Information",
-        content: [`Name: ${displayName || "—"}`, `Email: ${user?.email || "—"}`].join("\n"),
+        content: [
+          `Name: ${displayName || "—"}`,
+          `Email: ${user?.email || "—"}`,
+        ].join("\n"),
       },
     ];
   }, [displayName, user?.email]);
@@ -140,14 +194,23 @@ export default function UserDetailScreen() {
   // ---------- Render helpers ----------
   const Header = (
     <View className="flex-row items-center justify-between px-6 py-4">
-      <TouchableOpacity onPress={() => router.back()} className="w-10 h-10 items-center justify-center" activeOpacity={0.85}>
+      <TouchableOpacity
+        onPress={() => router.back()}
+        className="w-10 h-10 items-center justify-center"
+        activeOpacity={0.85}
+      >
         <ArrowLeft size={22} className="text-foreground" />
       </TouchableOpacity>
 
-      <Text className="text-lg font-semibold text-foreground">Primary Profile</Text>
+      <Text className="text-lg font-semibold text-foreground">
+        Primary Profile
+      </Text>
 
       <View className="flex-row items-center gap-2">
-        <TouchableOpacity onPress={() => setShowShareModal(true)} className="w-10 h-10 items-center justify-center">
+        <TouchableOpacity
+          onPress={() => setShowShareModal(true)}
+          className="w-10 h-10 items-center justify-center"
+        >
           <Share2 size={20} className="text-foreground" />
         </TouchableOpacity>
       </View>
@@ -186,7 +249,9 @@ export default function UserDetailScreen() {
           >
             {isCompleteMode && (
               <View className="mb-4 bg-primary/10 border border-primary/20 rounded-xl p-3">
-                <Text className="text-primary font-semibold text-sm">Finish setting up this profile</Text>
+                <Text className="text-primary font-semibold text-sm">
+                  Finish setting up this profile
+                </Text>
                 <Text className="text-muted-foreground text-sm mt-1">
                   Complete additional details to keep everything organized.
                 </Text>
@@ -216,7 +281,9 @@ export default function UserDetailScreen() {
               </Text>
 
               <View className="mt-3 bg-primary/10 rounded-full px-3 py-1.5">
-                <Text className="text-primary text-sm font-medium">Self (Primary user)</Text>
+                <Text className="text-primary text-sm font-medium">
+                  Self (Primary user)
+                </Text>
               </View>
             </View>
 
@@ -227,7 +294,7 @@ export default function UserDetailScreen() {
                   router.push(
                     primaryDependentId
                       ? `/(vault)/people/add?primary=true&id=${primaryDependentId}`
-                      : "/(vault)/people/add?primary=true"
+                      : "/(vault)/people/add?primary=true",
                   )
                 }
                 className="bg-card border border-border rounded-2xl p-6 active:opacity-80"
@@ -239,8 +306,12 @@ export default function UserDetailScreen() {
                       <User className="text-primary" size={24} />
                     </View>
                     <View className="flex-1">
-                      <Text className="text-lg font-semibold text-foreground mb-1">Edit Profile</Text>
-                      <Text className="text-sm text-muted-foreground">Update your info</Text>
+                      <Text className="text-lg font-semibold text-foreground mb-1">
+                        Edit Profile
+                      </Text>
+                      <Text className="text-sm text-muted-foreground">
+                        Update your info
+                      </Text>
                     </View>
                   </View>
                   <ArrowRight className="text-muted-foreground" size={20} />
@@ -249,7 +320,10 @@ export default function UserDetailScreen() {
 
               <TouchableOpacity
                 onPress={() => {
-                  Alert.alert("Coming soon", "iOS Contacts import will be added here.");
+                  Alert.alert(
+                    "Coming soon",
+                    "iOS Contacts import will be added here.",
+                  );
                 }}
                 className="bg-card border border-border rounded-2xl p-6 active:opacity-80"
                 activeOpacity={0.85}
@@ -257,19 +331,32 @@ export default function UserDetailScreen() {
                 <View className="flex-row items-center justify-between">
                   <View className="flex-row items-center gap-4 flex-1">
                     <View className="w-12 h-12 bg-secondary rounded-xl items-center justify-center">
-                      <Smartphone className="text-secondary-foreground" size={24} />
+                      <Smartphone
+                        className="text-secondary-foreground"
+                        size={24}
+                      />
                     </View>
                     <View className="flex-1">
-                      <Text className="text-lg font-semibold text-foreground mb-1">Import from iOS Contacts</Text>
-                      <Text className="text-sm text-muted-foreground">Pull name + photo (coming soon)</Text>
+                      <Text className="text-lg font-semibold text-foreground mb-1">
+                        Import from iOS Contacts
+                      </Text>
+                      <Text className="text-sm text-muted-foreground">
+                        Pull name + photo (coming soon)
+                      </Text>
                     </View>
                   </View>
                   <ArrowRight className="text-muted-foreground" size={20} />
                 </View>
               </TouchableOpacity>
 
-              <TouchableOpacity onPress={() => router.replace("/")} className="items-center" activeOpacity={0.8}>
-                <Text className="text-primary font-semibold">Sign in with a different account</Text>
+              <TouchableOpacity
+                onPress={() => router.replace("/")}
+                className="items-center"
+                activeOpacity={0.8}
+              >
+                <Text className="text-primary font-semibold">
+                  Sign in with a different account
+                </Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -286,8 +373,11 @@ export default function UserDetailScreen() {
                           await Promise.allSettled([
                             SecureStore.deleteItemAsync("accessToken"),
                             SecureStore.deleteItemAsync("refreshToken"),
-                            SecureStore.deleteItemAsync("userProfileCreated"),
-                            SecureStore.deleteItemAsync("primaryProfileCreated"),
+                            SecureStore.deleteItemAsync("hasOnboarded"),
+                            SecureStore.deleteItemAsync("skipOnboarding"),
+                            SecureStore.deleteItemAsync(
+                              "primaryProfileCreated",
+                            ),
                             SecureStore.deleteItemAsync("userFirstName"),
                             SecureStore.deleteItemAsync("userLastName"),
                             SecureStore.deleteItemAsync("userPreferredName"),
@@ -297,22 +387,27 @@ export default function UserDetailScreen() {
                           router.replace("/");
                         },
                       },
-                    ]
+                    ],
                   );
                 }}
                 className="items-center"
                 activeOpacity={0.8}
               >
-                <Text className="text-destructive font-semibold">Delete Account</Text>
+                <Text className="text-destructive font-semibold">
+                  Delete Account
+                </Text>
               </TouchableOpacity>
             </View>
 
             {/* Records */}
             {!!personId && (
               <View className="mt-10">
-                <Text className="text-lg font-semibold text-foreground mb-2">Information</Text>
+                <Text className="text-lg font-semibold text-foreground mb-2">
+                  Information
+                </Text>
                 <Text className="text-sm text-muted-foreground mb-4">
-                  Add and edit your records by category (medical, travel, documents, etc).
+                  Add and edit your records by category (medical, travel,
+                  documents, etc).
                 </Text>
 
                 {PERSON_CATEGORY_ORDER.map((category) => (
@@ -331,13 +426,15 @@ export default function UserDetailScreen() {
                     }}
                     onEdit={(record) => {
                       router.push({
-                        pathname: "/(vault)/people/[personId]/records/[recordId]/edit",
+                        pathname:
+                          "/(vault)/people/[personId]/records/[recordId]/edit",
                         params: { personId, recordId: record.id },
                       } as any);
                     }}
                     onOpen={(record) => {
                       router.push({
-                        pathname: "/(vault)/people/[personId]/records/[recordId]",
+                        pathname:
+                          "/(vault)/people/[personId]/records/[recordId]",
                         params: { personId, recordId: record.id },
                       } as any);
                     }}
@@ -366,10 +463,16 @@ export default function UserDetailScreen() {
   return (
     <SafeAreaView className="flex-1 bg-background">
       <View className="flex-row items-center justify-between px-6 py-4">
-        <TouchableOpacity onPress={() => router.back()} className="w-10 h-10 items-center justify-center" activeOpacity={0.85}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          className="w-10 h-10 items-center justify-center"
+          activeOpacity={0.85}
+        >
           <ArrowLeft size={22} className="text-foreground" />
         </TouchableOpacity>
-        <Text className="text-lg font-semibold text-foreground">Set up your profile</Text>
+        <Text className="text-lg font-semibold text-foreground">
+          Set up your profile
+        </Text>
         <View className="w-10" />
       </View>
 
@@ -387,10 +490,13 @@ export default function UserDetailScreen() {
             <User className="text-primary" size={40} />
           </View>
 
-          <Text className="text-3xl font-bold text-foreground text-center mb-3">Create your profile</Text>
+          <Text className="text-3xl font-bold text-foreground text-center mb-3">
+            Create your profile
+          </Text>
 
           <Text className="text-muted-foreground text-center text-base leading-relaxed max-w-xs">
-           This is your account profile (you). You can add family members and pets later.
+            This is your account profile (you). You can add family members and
+            pets later.
           </Text>
         </View>
 
@@ -407,8 +513,12 @@ export default function UserDetailScreen() {
                 </View>
 
                 <View className="flex-1">
-                  <Text className="text-lg font-semibold text-foreground mb-1">Enter info manually</Text>
-                  <Text className="text-sm text-muted-foreground">Name, DOB, and basics</Text>
+                  <Text className="text-lg font-semibold text-foreground mb-1">
+                    Enter info manually
+                  </Text>
+                  <Text className="text-sm text-muted-foreground">
+                    Name, DOB, and basics
+                  </Text>
                 </View>
               </View>
 
@@ -417,17 +527,28 @@ export default function UserDetailScreen() {
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity onPress={() => router.replace("/(tabs)")} className="mt-6 items-center" activeOpacity={0.8}>
+        <TouchableOpacity
+          onPress={() => router.replace("/(tabs)")}
+          className="mt-6 items-center"
+          activeOpacity={0.8}
+        >
           <Text className="text-primary font-semibold">Skip for now</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity onPress={() => router.replace("/")} className="mt-4 items-center" activeOpacity={0.8}>
-          <Text className="text-muted-foreground">Already have an account? Sign in</Text>
+        <TouchableOpacity
+          onPress={() => router.replace("/")}
+          className="mt-4 items-center"
+          activeOpacity={0.8}
+        >
+          <Text className="text-muted-foreground">
+            Already have an account? Sign in
+          </Text>
         </TouchableOpacity>
 
         <View className="mt-8 bg-muted/50 rounded-xl p-4 border border-border">
           <Text className="text-sm text-muted-foreground text-center leading-relaxed">
-            Your profile unlocks personalized dashboards and lets you attach documents and records to the right person or pet.
+            Your profile unlocks personalized dashboards and lets you attach
+            documents and records to the right person or pet.
           </Text>
         </View>
       </ScrollView>

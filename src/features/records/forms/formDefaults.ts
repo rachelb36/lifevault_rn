@@ -1,0 +1,257 @@
+import { RecordType } from "@/domain/records/recordTypes";
+
+export const CANONICAL_DEFAULTS: Partial<Record<RecordType, Record<string, unknown>>> =
+  {
+    PASSPORT: {
+      firstName: "",
+      middleName: "",
+      lastName: "",
+      passportNumber: "",
+      nationality: "",
+      dateOfBirth: "",
+      sex: "",
+      placeOfBirth: "",
+      issueDate: "",
+      expirationDate: "",
+      issuingCountry: "",
+      issuingAuthority: "",
+      mrzRaw: "",
+    },
+    PASSPORT_CARD: {
+      fullName: "",
+      passportCardNumber: "",
+      dateOfBirth: "",
+      expirationDate: "",
+      issuingCountry: "",
+      mrzRaw: "",
+    },
+    DRIVERS_LICENSE: {
+      fullName: "",
+      dlNumber: "",
+      dateOfBirth: "",
+      expirationDate: "",
+      issueDate: "",
+      address: {
+        line1: "",
+        line2: "",
+        city: "",
+        state: "",
+        postalCode: "",
+        country: "",
+      },
+      licenseClass: "",
+      restrictions: [],
+      issuingRegion: "",
+    },
+    BIRTH_CERTIFICATE: {
+      childFullName: "",
+      dateOfBirth: "",
+      placeOfBirth: {
+        city: "",
+        county: "",
+        state: "",
+        country: "",
+      },
+      certificateNumber: "",
+      parents: {
+        includeParents: false,
+        parent1Name: null,
+        parent2Name: null,
+      },
+    },
+    SOCIAL_SECURITY_CARD: {
+      fullName: "",
+      ssn: "",
+    },
+     MEDICAL_PROFILE: {
+      bloodType: "",
+      allergies: [],
+      conditions: [],
+    },
+    MEDICAL_INSURANCE: {
+      insuranceType: "",
+      insurerName: "",
+      memberName: "",
+      memberId: "",
+      groupNumber: "",
+      planName: "",
+      rx: {
+        bin: "",
+        pcn: "",
+        rxGroup: "",
+      },
+      customerServicePhone: "",
+      website: "",
+      effectiveDate: "",
+    },
+   
+    MEDICAL_PROCEDURES: {
+      procedures: [],
+    },
+    PRESCRIPTIONS: {
+      prescriptions: [],
+    },
+    VACCINATIONS: {
+      vaccinations: [],
+    },
+    VISION_PRESCRIPTION: {
+      rxDate: "",
+      doctorContactId: "",
+    },
+    PRIVATE_HEALTH_PROFILE: {
+      advocacyNeeds: [],
+      stressors: [],
+      triggers: [],
+      copingStrategies: [],
+      avoids: [],
+      sensorySensitivities: [],
+      sensorySeeking: [],
+      sensorySupports: [],
+      transitionSupports: [],
+      safetyRisks: [],
+    },
+    SCHOOL_INFO: {
+      schoolName: "",
+      address: {
+        line1: "",
+        city: "",
+        state: "",
+        postalCode: "",
+        country: "",
+      },
+      mainOfficePhone: "",
+      nurseContactId: "",
+      counselorContactId: "",
+    },
+    AUTHORIZED_PICKUP: {
+      authorizedPickup: [],
+    },
+    PEOPLE_CARE_PROVIDERS: {
+      providerType: "",
+      contactId: "",
+    },
+    EDUCATION_RECORD: {
+      title: "",
+      schoolName: "",
+      gradeOrLevel: "",
+      year: "",
+    },
+    PET_BASICS: {
+      isNeutered: "Unknown",
+      microchipId: "",
+      currentWeightValue: "",
+      currentWeightUnit: "lb",
+      notes: "",
+    },
+    PET_CARE_PROVIDERS: {
+      providerType: "",
+      contactId: "",
+    },
+    PET_VACCINATIONS: {
+      vaccineName: "",
+      dateAdministered: "",
+      doseNumber: "",
+      doseTotal: "",
+      providerContactId: "",
+    },
+    PET_FLEA_PREVENTION: {
+      productName: "",
+      dateGiven: "",
+      nextDueDate: "",
+    },
+    PET_SURGERIES: {
+      procedureName: "",
+      date: "",
+      clinicOrHospital: "",
+      surgeonOrVetContactId: "",
+    },
+    PET_INSURANCE: {
+      providerName: "",
+      policyNumber: "",
+      memberId: "",
+      customerServicePhone: "",
+    },
+    PERSON_SIZING_PROFILE: {
+      sizingReference: "",
+      measurementUnit: "",
+      generalSize: "",
+      notes: "",
+    },
+    PREFERENCES: {
+      likes: [],
+      dislikes: [],
+      hobbies: [],
+      favoriteSports: [],
+      favoriteColors: [],
+    },
+
+    TRAVEL_IDS: {
+      travelIds: [],
+    },
+    LOYALTY_ACCOUNTS: {
+      accounts: [],
+    },
+
+    OTHER_DOCUMENT: {
+      category: "",
+      title: "",
+    },
+
+
+    PET_WEIGHT_ENTRY: {
+      weightValue: "",
+      weightUnit: "lb",
+      measuredAt: "",
+    },
+    PET_MEDICATIONS: {
+      medicationName: "",
+      dosage: "",
+      adminMethod: "",
+      scheduleNotes: "",
+      missedDoseAction: "",
+      missedDoseNotes: "",
+      sideEffectSeverity: "",
+      sideEffectsNotes: "",
+    },
+    PET_DIAGNOSES: {
+      diagnosisName: "",
+      date: "",
+      notes: "",
+    },
+    PET_FEEDING_ROUTINE: {
+      foodBrand: "",
+      foodType: "",
+      portionAmount: "",
+      portionUnit: "",
+      feedingTimes: [],
+      treatAllowed: "",
+      treatPurpose: "",
+      treatRulesNotes: "",
+    },
+    PET_BATHROOM_ROUTINE: {
+      pottyTimesPerDay: "",
+      leashHarnessNotes: "",
+      avoidTriggers: [],
+      avoidTriggersNotes: "",
+      pottyScheduleTimes: [],
+    },
+    PET_SLEEP_ROUTINE: {
+      sleepLocation: "",
+      crateRule: "",
+      bedtimeRoutine: "",
+    },
+    PET_BEHAVIOR_PROFILE: {
+      fears: [],
+      separationAnxietyLevel: "",
+      separationAnxietyNotes: "",
+      resourceGuarding: "",
+      escapeTendency: "",
+      aggressionTriggers: [],
+      strangerIntro: "",
+      touchSensitivities: [],
+    },
+    PET_DOCUMENT: {
+      label: "",
+      documentType: "",
+    },
+  };

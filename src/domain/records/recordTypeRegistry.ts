@@ -90,6 +90,14 @@ export const RECORD_TYPE_REGISTRY: RecordTypeMeta[] = [
     cardinality: "SINGLE",
     sort: 60,
   },
+  {
+    type: RECORD_TYPES.PEOPLE_CARE_PROVIDERS,
+    category: RECORD_CATEGORIES.MEDICAL,
+    label: "Care Providers",
+    iconKey: "users",
+    cardinality: "MULTI",
+    sort: 70,
+  },
   // PEOPLE: Private health
   {
     type: RECORD_TYPES.PRIVATE_HEALTH_PROFILE,
@@ -109,6 +117,14 @@ export const RECORD_TYPE_REGISTRY: RecordTypeMeta[] = [
     iconKey: "school",
     cardinality: "SINGLE",
     sort: 10,
+  },
+  {
+    type: RECORD_TYPES.AUTHORIZED_PICKUP,
+    category: RECORD_CATEGORIES.SCHOOL,
+    label: "Authorized Pickup",
+    iconKey: "user-check",
+    cardinality: "MULTI",
+    sort: 20,
   },
   {
     type: RECORD_TYPES.EDUCATION_RECORD,
@@ -136,6 +152,14 @@ export const RECORD_TYPE_REGISTRY: RecordTypeMeta[] = [
     iconKey: "shirt",
     cardinality: "MULTI",
     sort: 20,
+  },
+  {
+    type: RECORD_TYPES.SIZES,
+    category: RECORD_CATEGORIES.PREFERENCES,
+    label: "Sizes",
+    iconKey: "ruler",
+    cardinality: "SINGLE",
+    sort: 30,
   },
 
   {
@@ -248,6 +272,14 @@ export const RECORD_TYPE_REGISTRY: RecordTypeMeta[] = [
     cardinality: "SINGLE",
     sort: 50,
   },
+  {
+    type: RECORD_TYPES.PET_WEIGHT_ENTRY,
+    category: RECORD_CATEGORIES.PET_MEDICAL,
+    label: "Weight Entry",
+    iconKey: "scale",
+    cardinality: "MULTI",
+    sort: 60,
+  },
 
   // ── PET: Daily Care ─────────────────────────────────────────────
   {
@@ -276,11 +308,11 @@ export const RECORD_TYPE_REGISTRY: RecordTypeMeta[] = [
   },
   {
     type: RECORD_TYPES.PET_FLEA_PREVENTION,
-    category: RECORD_CATEGORIES.PET_DAILY_CARE,
+    category: RECORD_CATEGORIES.PET_MEDICAL,
     label: "Flea Prevention",
     iconKey: "shield-check",
     cardinality: "MULTI",
-    sort: 40,
+    sort: 55,
   },
 
   // ── PET: Behavior & Safety ──────────────────────────────────────

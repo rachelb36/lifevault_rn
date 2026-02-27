@@ -12,14 +12,18 @@ function nowIso() {
   return new Date().toISOString();
 }
 
-export function normalizeAndMigratePetList(raw: unknown): PetProfileV1[] {
+export function normalizePetList(
+  raw: unknown,
+): PetProfileV1[] {
   const list = asArray<any>(raw);
 
-  return list
+  const pets = list
     .map((p): PetProfileV1 | null => {
       const id = asString(p?.id).trim();
-      const petName = asString(p?.petName || p?.name).trim();
-      if (!id || !petName) return null;
+      const petName = asString(p?.petName).trim();
+      if (!id || !petName) {
+        return null;
+      }
 
       return {
         schemaVersion: 1,
@@ -29,10 +33,12 @@ export function normalizeAndMigratePetList(raw: unknown): PetProfileV1[] {
         kindOtherText: asString(p?.kindOtherText) || undefined,
         breed: asString(p?.breed) || undefined,
         breedOtherText: asString(p?.breedOtherText) || undefined,
-        avatarUri: asString(p?.avatar || p?.avatarUri) || undefined,
+        avatarUri: asString(p?.avatarUri) || undefined,
         createdAt: asString(p?.createdAt) || nowIso(),
-        updatedAt: nowIso(),
+        updatedAt: asString(p?.updatedAt) || nowIso(),
       };
     })
     .filter(Boolean) as PetProfileV1[];
+
+  return pets;
 }

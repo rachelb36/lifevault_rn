@@ -42,6 +42,9 @@ export type FieldRendererProps = {
   /** Custom add-row label for objectList */
   addLabel?: string;
 
+  /** Force pill display even when options > 6 */
+  forcePills?: boolean;
+
   // ---- Callbacks from parent ----
 
   /** Set a top-level field value */

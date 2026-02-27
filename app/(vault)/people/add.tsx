@@ -18,7 +18,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ArrowLeft, Calendar, Camera, User as UserIcon } from "lucide-react-native";
 import * as ImagePicker from "expo-image-picker";
-import { gql, useApolloClient, useMutation } from "@apollo/client";
+import { useApolloClient } from "@apollo/client";
 import * as SecureStore from "expo-secure-store";
 
 import DatePickerModal from "@/shared/ui/DatePickerModal";
@@ -26,38 +26,15 @@ import KeyboardDismiss from "@/shared/ui/KeyboardDismiss";
 import NameFields from "@/shared/ui/NameFields";
 import { toIsoDateOnly, formatDateLabel } from "@/shared/utils/date";
 import { RELATIONSHIP_OPTIONS, type RelationshipOption } from "@/features/people/constants/options";
-import { getLocalOnlyMode } from "@/shared/utils/localStorage";
-import { listPeople } from "@/features/people/data/peopleStorage";
-import { upsertProfile } from "@/features/profiles/data/storage";
+import { isLocalOnly } from "@/shared/config/dataMode";
+import { listPeopleProfiles, upsertProfile } from "@/features/profiles/data/storage";
 import type { PersonProfile } from "@/features/people/domain/person.model";
-
-const MY_VAULTS = gql`
-  query MyVaults {
-    myVaults {
-      id
-    }
-  }
-`;
-
-const CREATE_VAULT = gql`
-  mutation CreateVault($input: CreateVaultInput!) {
-    createVault(input: $input) {
-      id
-    }
-  }
-`;
-
-const CREATE_ENTITY = gql`
-  mutation CreateEntity($input: CreateEntityInput!) {
-    createEntity(input: $input) {
-      id
-      displayName
-      relationshipType
-      relationshipOtherLabel
-      dateOfBirth
-    }
-  }
-`;
+import {
+  CREATE_ENTITY,
+  UPDATE_ENTITY,
+  getOrCreateVaultId,
+  localRelToServer,
+} from "@/lib/graphql/entities";
 
 const toUtcMidnightIso = (date: Date) => new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate())).toISOString();
 
@@ -72,12 +49,13 @@ export default function AddDependentScreen() {
   const isPrimaryFromParam = primaryValue === "true" || primaryValue === "1";
   const shouldForcePrimaryForFirstProfile =
     !isEditing && hasAnyPeople === false;
+  const [editingIsPrimary, setEditingIsPrimary] = useState(false);
   const isPrimaryFlow =
-    isPrimaryFromParam || shouldForcePrimaryForFirstProfile;
+    isPrimaryFromParam || shouldForcePrimaryForFirstProfile || editingIsPrimary;
 
   const apolloClient = useApolloClient();
-  const [createEntity, { loading: saving }] = useMutation(CREATE_ENTITY);
   const didPrefill = useRef(false);
+  const [saving, setSaving] = useState(false);
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -113,10 +91,11 @@ export default function AddDependentScreen() {
   const hasUnsavedChanges =
     initialSnapshot.length > 0 && initialSnapshot !== currentSnapshot;
 
+  // ─── Check if any people exist (server-aware) ─────
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
-      const all = await listPeople();
+      const all = await listPeopleProfiles();
       if (!cancelled) setHasAnyPeople(all.length > 0);
     };
     load();
@@ -145,30 +124,6 @@ export default function AddDependentScreen() {
       setRelationship("Self");
     }
   }, [isPrimaryFlow, relationship]);
-
-  const getRelationshipInput = () => {
-    const normalized = relationship.trim().toLowerCase();
-    if (isPrimaryFlow || normalized === "self") return { type: "PRIMARY" as const };
-    if (normalized === "spouse") return { type: "SPOUSE" as const };
-    if (normalized === "partner") return { type: "PARTNER" as const };
-    if (normalized === "child") return { type: "CHILD" as const };
-    if (normalized === "mother" || normalized === "father" || normalized === "parent") return { type: "PARENT" as const };
-    if (normalized === "grandparent") return { type: "GRANDPARENT" as const };
-    if (normalized === "sibling") return { type: "SIBLING" as const };
-    return { type: "OTHER" as const, other: relationship.trim() || "Other" };
-  };
-
-  const getOrCreateVaultId = async () => {
-    const res = await apolloClient.query({ query: MY_VAULTS, fetchPolicy: "network-only" });
-    const existing = res.data?.myVaults?.[0]?.id;
-    if (existing) return existing;
-
-    const created = await apolloClient.mutate({
-      mutation: CREATE_VAULT,
-      variables: { input: { name: "My Family Vault" } },
-    });
-    return created.data?.createVault?.id as string;
-  };
 
   const openPhotoActions = () => {
     const fromLibrary = async () => {
@@ -231,6 +186,7 @@ export default function AddDependentScreen() {
     Alert.alert("Photo", undefined, buttons);
   };
 
+  // ─── Prefill from SecureStore for primary flow ────
   useEffect(() => {
     if (!isPrimaryFlow || didPrefill.current) return;
     let cancelled = false;
@@ -267,19 +223,24 @@ export default function AddDependentScreen() {
     };
   }, [isPrimaryFlow, firstName, lastName, preferredName, dobDate, avatarUri]);
 
+  // ─── Load existing profile for editing (server-aware) ─
   useEffect(() => {
     if (!isEditing || !editId) return;
     let cancelled = false;
 
     const loadEdit = async () => {
-      const all = await listPeople();
+      const all = await listPeopleProfiles();
       const found = all.find((d) => d.id === editId);
       if (!found || cancelled) return;
 
+      const foundIsPrimary = Boolean(
+        found.isPrimary || found.relationship?.trim().toLowerCase() === "self",
+      );
+      setEditingIsPrimary(foundIsPrimary);
       setFirstName(found.firstName || "");
       setLastName(found.lastName || "");
       setPreferredName(found.preferredName || "");
-      setRelationship((found.relationship as RelationshipOption | "Self") || "Other");
+      setRelationship(foundIsPrimary ? "Self" : (found.relationship as RelationshipOption | "Self") || "Other");
       setDobDate(found.dob ? new Date(found.dob) : null);
       setAvatarUri(found.avatarUri || null);
       setInitialSnapshot(
@@ -313,71 +274,113 @@ export default function AddDependentScreen() {
   };
 
   const handleSave = async () => {
-    if (!validate()) return;
+    if (!validate() || saving) return;
 
+    setSaving(true);
     try {
-      const timestamp = new Date().toISOString();
-      const localOnly = await getLocalOnlyMode();
+      const localOnly = await isLocalOnly();
+      const displayName = `${firstName.trim()} ${lastName.trim()}`.trim();
 
-      const person: PersonProfile = {
-        id: editId || `person_${Date.now()}`,
-        profileType: "PERSON",
-        firstName: firstName.trim(),
-        lastName: lastName.trim(),
-        preferredName: preferredName.trim() || undefined,
-        relationship: isPrimaryFlow ? "Self" : relationship,
-        dob: dobDate ? toIsoDateOnly(dobDate) : undefined,
-        avatarUri: avatarUri || undefined,
-        isPrimary: isPrimaryFlow ? true : isPrimary,
-        createdAt: timestamp,
-        updatedAt: timestamp,
-      };
+      if (localOnly) {
+        // ── LOCAL MODE: write to AsyncStorage ──
+        const timestamp = new Date().toISOString();
+        const person: PersonProfile = {
+          id: editId || `person_${Date.now()}`,
+          profileType: "PERSON",
+          firstName: firstName.trim(),
+          lastName: lastName.trim(),
+          preferredName: preferredName.trim() || undefined,
+          relationship: isPrimaryFlow ? "Self" : relationship,
+          dob: dobDate ? toIsoDateOnly(dobDate) : undefined,
+          avatarUri: avatarUri || undefined,
+          isPrimary: isPrimaryFlow ? true : isPrimary,
+          createdAt: timestamp,
+          updatedAt: timestamp,
+        };
 
-      if (!isEditing && !localOnly) {
-        // Server mode: create entity on backend first. On failure, stop — do NOT write locally.
-        try {
-          const vaultId = await getOrCreateVaultId();
-          const rel = getRelationshipInput();
-          const res = await createEntity({
-            variables: {
-              input: {
-                vaultId,
-                entityType: "PERSON",
-                displayName: `${person.firstName} ${person.lastName}`.trim(),
-                relationshipType: rel.type,
-                relationshipOtherLabel: (rel as any).other ?? null,
-                dateOfBirth: dobDate ? toUtcMidnightIso(dobDate) : null,
-              },
-            },
-          });
+        await upsertProfile(person);
 
-          const created = res.data?.createEntity;
-          if (created?.id) person.id = created.id;
-        } catch (networkErr: any) {
-          Alert.alert(
-            "Save failed",
-            networkErr?.message || "Could not reach the server. Please check your connection and try again.",
-          );
-          return;
+        if (isPrimaryFlow) {
+          await Promise.allSettled([
+            SecureStore.setItemAsync("primaryProfileCreated", "true"),
+            SecureStore.setItemAsync("userFirstName", person.firstName),
+            SecureStore.setItemAsync("userLastName", person.lastName),
+            SecureStore.setItemAsync("userPreferredName", person.preferredName || ""),
+            SecureStore.setItemAsync("userDob", person.dob || ""),
+          ]);
         }
+
+        router.replace(`/profile-saved?type=dependent&id=${person.id}${isPrimaryFlow ? "&primary=true" : ""}` as any);
+        return;
       }
 
-      // Local-only mode OR server succeeded: persist locally
-      await upsertProfile(person);
+      // ── SERVER MODE: GraphQL mutations only — no local write ──
+      const vaultId = await getOrCreateVaultId(apolloClient);
+      const rel = localRelToServer(relationship, isPrimary);
 
-      if (isPrimaryFlow) {
-        await Promise.allSettled([
-          SecureStore.setItemAsync("primaryProfileCreated", "true"),
-          SecureStore.setItemAsync("userFirstName", person.firstName),
-          SecureStore.setItemAsync("userLastName", person.lastName),
-          SecureStore.setItemAsync("userPreferredName", person.preferredName || ""),
-          SecureStore.setItemAsync("userDob", person.dob || ""),
-        ]);
+      if (isEditing) {
+        // Update existing entity on server
+        await apolloClient.mutate({
+          mutation: UPDATE_ENTITY,
+          variables: {
+            input: {
+              entityId: editId,
+              displayName,
+              relationshipType: rel.type,
+              relationshipOtherLabel: rel.label ?? null,
+              dateOfBirth: dobDate ? toUtcMidnightIso(dobDate) : null,
+            },
+          },
+        });
+
+        if (isPrimaryFlow) {
+          await Promise.allSettled([
+            SecureStore.setItemAsync("userFirstName", firstName.trim()),
+            SecureStore.setItemAsync("userLastName", lastName.trim()),
+            SecureStore.setItemAsync("userPreferredName", preferredName.trim() || ""),
+            SecureStore.setItemAsync("userDob", dobDate ? toIsoDateOnly(dobDate) : ""),
+          ]);
+        }
+
+        router.replace(`/profile-saved?type=dependent&id=${editId}` as any);
+      } else {
+        // Create new entity on server — ID comes from server
+        const res = await apolloClient.mutate({
+          mutation: CREATE_ENTITY,
+          variables: {
+            input: {
+              vaultId,
+              entityType: "PERSON",
+              displayName,
+              relationshipType: rel.type,
+              relationshipOtherLabel: rel.label ?? null,
+              dateOfBirth: dobDate ? toUtcMidnightIso(dobDate) : null,
+            },
+          },
+        });
+
+        const serverId = res.data?.createEntity?.id;
+        if (!serverId) throw new Error("Server did not return an entity ID.");
+
+        if (isPrimaryFlow) {
+          await Promise.allSettled([
+            SecureStore.setItemAsync("primaryProfileCreated", "true"),
+            SecureStore.setItemAsync("userFirstName", firstName.trim()),
+            SecureStore.setItemAsync("userLastName", lastName.trim()),
+            SecureStore.setItemAsync("userPreferredName", preferredName.trim() || ""),
+            SecureStore.setItemAsync("userDob", dobDate ? toIsoDateOnly(dobDate) : ""),
+          ]);
+        }
+
+        router.replace(`/profile-saved?type=dependent&id=${serverId}` as any);
       }
-
-      router.replace(`/profile-saved?type=dependent&id=${person.id}` as any);
     } catch (e: any) {
-      Alert.alert("Save failed", e?.message ?? "Unknown error");
+      Alert.alert(
+        "Save failed",
+        e?.message || "Could not reach the server. Please check your connection and try again.",
+      );
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -483,8 +486,10 @@ export default function AddDependentScreen() {
           </View>
 
           <View className="mt-6 gap-3">
-            <TouchableOpacity onPress={handleSave} className="bg-primary rounded-xl py-4 items-center" activeOpacity={0.85}>
-              <Text className="text-primary-foreground font-semibold">{isPrimaryFlow ? "Save Profile" : isEditing ? "Save Changes" : "Save Person"}</Text>
+            <TouchableOpacity onPress={handleSave} className="bg-primary rounded-xl py-4 items-center" activeOpacity={0.85} disabled={saving}>
+              <Text className="text-primary-foreground font-semibold">
+                {saving ? "Saving…" : isPrimaryFlow ? "Save Profile" : isEditing ? "Save Changes" : "Save Person"}
+              </Text>
             </TouchableOpacity>
 
             <TouchableOpacity onPress={handleBack} className="border border-border rounded-xl py-4 items-center" activeOpacity={0.85}>

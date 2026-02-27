@@ -8,6 +8,8 @@ export type PetProfileV1 = {
   breed?: string;
   breedOtherText?: string;
   dob?: string;
+  dateType?: string;
+  adoptionDate?: string;
   gender?: string;
   avatarUri?: string;
   createdAt: string;

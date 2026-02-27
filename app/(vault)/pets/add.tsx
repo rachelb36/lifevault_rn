@@ -17,6 +17,7 @@ import {
   Image,
   KeyboardAvoidingView,
   Modal,
+  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -69,7 +70,10 @@ export default function AddPetScreen() {
   // DOB & Gender
   const [dob, setDob] = useState("");
   const [gender, setGender] = useState("");
+  const [dateType, setDateType] = useState<"dob" | "adoptionDate">("dob");
+  const [adoptionDate, setAdoptionDate] = useState("");
   const [showDobPicker, setShowDobPicker] = useState(false);
+  const [showAdoptionDatePicker, setShowAdoptionDatePicker] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<{
     petName?: string;
     kind?: string;
@@ -77,6 +81,7 @@ export default function AddPetScreen() {
     breed?: string;
     breedOtherText?: string;
     dob?: string;
+    adoptionDate?: string;
   }>({});
   const [initialSnapshot, setInitialSnapshot] = useState("");
 
@@ -109,8 +114,10 @@ export default function AddPetScreen() {
         breedOtherText,
         dob,
         gender,
+        dateType,
+        adoptionDate,
       }),
-    [avatarUri, petName, kind, kindOtherText, breed, breedOtherText, dob, gender],
+    [avatarUri, petName, kind, kindOtherText, breed, breedOtherText, dob, gender, dateType, adoptionDate],
   );
   const hasUnsavedChanges =
     initialSnapshot.length > 0 && initialSnapshot !== currentSnapshot;
@@ -132,6 +139,8 @@ export default function AddPetScreen() {
       setBreedOtherText(profile.breedOtherText || "");
       setDob(profile.dob || "");
       setGender(profile.gender || "");
+      setDateType((profile.dateType as "dob" | "adoptionDate") || "dob");
+      setAdoptionDate(profile.adoptionDate || "");
       setInitialSnapshot(
         JSON.stringify({
           avatarUri: profile.avatarUri || null,
@@ -142,6 +151,8 @@ export default function AddPetScreen() {
           breedOtherText: profile.breedOtherText || "",
           dob: profile.dob || "",
           gender: profile.gender || "",
+          dateType: (profile.dateType as "dob" | "adoptionDate") || "dob",
+          adoptionDate: profile.adoptionDate || "",
         }),
       );
     })();
@@ -163,6 +174,8 @@ export default function AddPetScreen() {
           breedOtherText: "",
           dob: "",
           gender: "",
+          dateType: "dob",
+          adoptionDate: "",
         }),
       );
     }
@@ -189,7 +202,18 @@ export default function AddPetScreen() {
       try {
         const perm = await ImagePicker.requestCameraPermissionsAsync();
         if (!perm.granted) {
-          Alert.alert("Camera access needed", "Please allow camera access in Settings.");
+          if (!perm.canAskAgain) {
+            Alert.alert(
+              "Camera access needed",
+              "Camera permission was denied. Please enable it in Settings.",
+              [
+                { text: "Cancel", style: "cancel" },
+                { text: "Open Settings", onPress: () => Linking.openSettings() },
+              ],
+            );
+          } else {
+            Alert.alert("Camera access needed", "Please allow camera access to take a photo.");
+          }
           return;
         }
         const res = await ImagePicker.launchCameraAsync({
@@ -229,7 +253,8 @@ export default function AddPetScreen() {
     if (showBreedDropdown && normalizeKind(breed) === "other" && !breedOtherText.trim()) {
       nextErrors.breedOtherText = "Please specify the breed.";
     }
-    if (!dob.trim()) nextErrors.dob = "Date of birth is required.";
+    if (dateType === "dob" && !dob.trim()) nextErrors.dob = "Date of birth is required.";
+    if (dateType === "adoptionDate" && !adoptionDate.trim()) nextErrors.adoptionDate = "Adoption date is required.";
     setFieldErrors(nextErrors);
     return Object.keys(nextErrors).length === 0;
   };
@@ -255,6 +280,8 @@ export default function AddPetScreen() {
       breed: breed.trim() || undefined,
       breedOtherText: breedOtherText.trim() || undefined,
       dob: dob.trim() || undefined,
+      dateType,
+      adoptionDate: adoptionDate.trim() || undefined,
       gender: gender.trim() || undefined,
     };
 
@@ -443,20 +470,54 @@ export default function AddPetScreen() {
             </View>
           </View>
 
-          {/* Date of Birth */}
+          {/* Date Type Toggle */}
           <View>
-            <Text className="text-sm font-medium text-foreground mb-2">Date of Birth</Text>
-            <TouchableOpacity
-              onPress={() => setShowDobPicker(true)}
-              className="bg-background border border-border rounded-xl px-4 py-3"
-              activeOpacity={0.85}
-            >
-              <Text className={dob ? "text-foreground" : "text-muted-foreground"}>
-                {formatDateLabel(dob, "Select date")}
-              </Text>
-            </TouchableOpacity>
+            <Text className="text-sm font-medium text-foreground mb-2">Date</Text>
+            <View className="flex-row gap-2 mb-3">
+              {([["dob", "Date of Birth"], ["adoptionDate", "Adoption Date"]] as const).map(([key, label]) => {
+                const active = dateType === key;
+                return (
+                  <TouchableOpacity
+                    key={key}
+                    onPress={() => {
+                      setDateType(key);
+                      setFieldErrors((prev) => ({ ...prev, dob: undefined, adoptionDate: undefined }));
+                    }}
+                    className={`flex-1 py-2 rounded-full border items-center ${active ? "bg-primary border-primary" : "bg-background border-border"}`}
+                    activeOpacity={0.85}
+                  >
+                    <Text className={active ? "text-primary-foreground text-xs font-semibold" : "text-muted-foreground text-xs"}>{label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {dateType === "dob" ? (
+              <TouchableOpacity
+                onPress={() => setShowDobPicker(true)}
+                className="bg-background border border-border rounded-xl px-4 py-3"
+                activeOpacity={0.85}
+              >
+                <Text className={dob ? "text-foreground" : "text-muted-foreground"}>
+                  {formatDateLabel(dob, "Select date of birth")}
+                </Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                onPress={() => setShowAdoptionDatePicker(true)}
+                className="bg-background border border-border rounded-xl px-4 py-3"
+                activeOpacity={0.85}
+              >
+                <Text className={adoptionDate ? "text-foreground" : "text-muted-foreground"}>
+                  {formatDateLabel(adoptionDate, "Select adoption date")}
+                </Text>
+              </TouchableOpacity>
+            )}
             {fieldErrors.dob ? (
               <Text className="mt-1 text-xs text-destructive">{fieldErrors.dob}</Text>
+            ) : null}
+            {fieldErrors.adoptionDate ? (
+              <Text className="mt-1 text-xs text-destructive">{fieldErrors.adoptionDate}</Text>
             ) : null}
           </View>
 
@@ -495,6 +556,18 @@ export default function AddPetScreen() {
         }}
         onCancel={() => setShowDobPicker(false)}
         title="Date of Birth"
+      />
+
+      <DatePickerModal
+        visible={showAdoptionDatePicker}
+        value={parseDate(adoptionDate)}
+        onConfirm={(date) => {
+          setAdoptionDate(toIsoDateOnly(date));
+          setFieldErrors((prev) => ({ ...prev, adoptionDate: undefined }));
+          setShowAdoptionDatePicker(false);
+        }}
+        onCancel={() => setShowAdoptionDatePicker(false)}
+        title="Adoption Date"
       />
 
       {/* Breed picker bottom sheet */}

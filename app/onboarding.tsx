@@ -5,7 +5,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { ChevronRight } from "lucide-react-native";
 import { useRouter } from "expo-router";
 import * as SecureStore from "expo-secure-store";
-import { getLocalOnlyMode, getLocalUser, setLocalUser } from "@/shared/utils/localStorage";
+import { isLocalOnly } from "@/shared/config/dataMode";
+import { getLocalUser, setLocalUser } from "@/shared/utils/localStorage";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -64,7 +65,7 @@ export default function OnboardingScreen() {
 
     // Last slide → mark onboarding complete + go to primary setup
     try {
-      const localOnly = await getLocalOnlyMode();
+      const localOnly = await isLocalOnly();
       if (localOnly) {
         const current = await getLocalUser();
         await setLocalUser({

@@ -10,6 +10,7 @@ export default function ListField({
   label,
   fieldValue,
   options: rawOptions,
+  forcePills,
   setField,
   openPickerSheet,
   inlineAdd,
@@ -22,7 +23,7 @@ export default function ListField({
   const copy = buildSheetCopy(label);
   const options = (rawOptions ?? []).map((opt) => String(opt));
   const hasOptionCatalog = options.length > 0;
-  const usePills = options.length <= 6;
+  const usePills = forcePills || options.length <= 6;
 
   const toggleListItem = (nextItem: string) => {
     const normalized = nextItem.trim();

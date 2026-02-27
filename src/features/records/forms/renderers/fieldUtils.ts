@@ -27,7 +27,9 @@ export function safeStringArray(v: unknown): string[] {
 
 export function toBoolean(value: unknown): boolean {
   if (typeof value === "boolean") return value;
-  const text = String(value ?? "").trim().toLowerCase();
+  const text = String(value ?? "")
+    .trim()
+    .toLowerCase();
   return text === "true" || text === "1" || text === "yes";
 }
 
@@ -38,7 +40,6 @@ export function isNumericField(key: string): boolean {
     lower.includes("weight") ||
     lower.includes("height") ||
     lower.includes("age") ||
-    lower.includes("dose") ||
     lower.includes("amount") ||
     lower.includes("quantity") ||
     lower.includes("zip") ||
@@ -71,9 +72,17 @@ export function isContactIdField(key: string): boolean {
 }
 
 /** Heuristic: detect field keys that should use the date picker */
-export function isDateField(key: string, label: string, placeholder?: string): boolean {
+export function isDateField(
+  key: string,
+  label: string,
+  placeholder?: string,
+): boolean {
   const lower = `${key} ${label} ${placeholder ?? ""}`.toLowerCase();
-  return lower.includes("yyyy-mm-dd") || lower.includes(" date") || lower.includes("dob");
+  return (
+    lower.includes("yyyy-mm-dd") ||
+    lower.includes(" date") ||
+    lower.includes("dob")
+  );
 }
 
 /** Build a summary string for an object list item (first 3 non-empty fields) */

@@ -10,6 +10,7 @@ import ContactIdField from "./ContactIdField";
 import DocumentField from "./DocumentField";
 import ListField from "./ListField";
 import ObjectListField from "./ObjectListField";
+import TimeListField from "./TimeListField";
 
 /**
  * Maps a FieldType string to the React component that renders it.
@@ -31,6 +32,7 @@ export const fieldRendererMap: Record<
   document: DocumentField,
   list: ListField,
   objectList: ObjectListField,
+  timeList: TimeListField,
 };
 
 /** Get the renderer for a field type, falling back to TextInputField. */

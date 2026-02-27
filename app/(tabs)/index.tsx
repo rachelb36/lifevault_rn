@@ -12,6 +12,7 @@ import {
   ChevronRight,
 } from "lucide-react-native";
 import { useColorScheme } from "@/lib/useColorScheme";
+import { useUserName } from "@/shared/hooks/useUserName";
 
 type QuickAction = {
   id: string;
@@ -33,6 +34,7 @@ export default function DashboardScreen() {
   const router = useRouter();
   const { colorScheme } = useColorScheme();
   const isDark = colorScheme === "dark";
+  const { displayName } = useUserName();
 
   // If any of these routes don't exist in your app, just change the path strings:
   // - Add Person: "/(vault)/people/add"
@@ -101,8 +103,9 @@ export default function DashboardScreen() {
       >
         {/* Header */}
         <View className="px-6 pt-4 pb-2">
-          <Text className="text-3xl font-bold text-foreground">Hello,</Text>
-          <Text className="text-3xl font-bold text-foreground">Welcome</Text>
+          <Text className="text-3xl font-bold text-foreground">
+            Hello, {displayName || "Welcome"}
+          </Text>
           <Text className="text-sm text-muted-foreground mt-2">
             Your vault at a glance.
           </Text>

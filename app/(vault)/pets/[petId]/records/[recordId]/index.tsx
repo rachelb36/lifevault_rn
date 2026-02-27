@@ -21,7 +21,6 @@ export default function PetRecordDetailScreen() {
   return (
     <RecordDetailScreen
       entityId={petId ? String(petId) : ""}
-      entityType="pet"
       recordId={recordId ? String(recordId) : ""}
       editRoutePath="/(vault)/pets/[petId]/records/[recordId]/edit"
       entityParamKey="petId"

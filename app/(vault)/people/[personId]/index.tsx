@@ -41,7 +41,10 @@ import { ShareSection, shareProfilePdf } from "@/shared/share/profilePdf";
 import { findProfile } from "@/features/profiles/data/storage";
 import type { PersonProfile } from "@/features/profiles/domain/types";
 
-import { PERSON_CATEGORY_ORDER, RecordCategory } from "@/domain/records/recordCategories";
+import {
+  PERSON_CATEGORY_ORDER,
+  RecordCategory,
+} from "@/domain/records/recordCategories";
 import { RecordType } from "@/domain/records/recordTypes";
 import { isSingletonType } from "@/domain/records/selectors/isSingletonType";
 import { listRecordsForPerson } from "@/features/records/data/storage";
@@ -66,8 +69,9 @@ function computeAge(dob?: string): { label: string; years: number } | null {
 
 export default function PersonDetailScreen() {
   const router = useRouter();
-  const { personId } = useLocalSearchParams<{ personId?: string }>();
+  const { personId, mode } = useLocalSearchParams<{ personId?: string; mode?: string }>();
   const pid = Array.isArray(personId) ? personId[0] : personId;
+  const isCompleteMode = mode === "complete";
 
   const [person, setPerson] = useState<PersonProfile | null>(null);
   const [records, setRecords] = useState<LifeVaultRecord[]>([]);
@@ -89,7 +93,9 @@ export default function PersonDetailScreen() {
     setRecords(nextRecords);
     setContacts(
       allContacts.filter((c) =>
-        (c.linkedProfiles || []).some((lp) => lp.id === pid && lp.type === "person"),
+        (c.linkedProfiles || []).some(
+          (lp) => lp.id === pid && lp.type === "person",
+        ),
       ),
     );
   }, [pid]);
@@ -102,7 +108,9 @@ export default function PersonDetailScreen() {
 
   const displayName = useMemo(() => {
     if (!person) return "";
-    return person.preferredName || `${person.firstName} ${person.lastName}`.trim();
+    return (
+      person.preferredName || `${person.firstName} ${person.lastName}`.trim()
+    );
   }, [person]);
 
   const isPrimaryPerson = Boolean(
@@ -137,7 +145,13 @@ export default function PersonDetailScreen() {
         ].join("\n"),
       },
     ];
-  }, [displayName, person?.relationship, person?.dob, ageInfo, isPrimaryPerson]);
+  }, [
+    displayName,
+    person?.relationship,
+    person?.dob,
+    ageInfo,
+    isPrimaryPerson,
+  ]);
 
   // ── Navigation handlers ────────────────────────────────────────────────
 
@@ -188,7 +202,9 @@ export default function PersonDetailScreen() {
           </Text>
         </View>
         <View className="flex-1 items-center justify-center">
-          <Text className="text-foreground font-semibold">Person not found</Text>
+          <Text className="text-foreground font-semibold">
+            Person not found
+          </Text>
         </View>
       </SafeAreaView>
     );
@@ -201,12 +217,16 @@ export default function PersonDetailScreen() {
       <SafeAreaView className="flex-1 bg-background">
         {/* Header */}
         <View className="flex-row items-center justify-between px-6 py-4 border-b border-border">
-          <Pressable
-            onPress={() => router.back()}
-            className="w-10 h-10 items-center justify-center"
-          >
-            <ArrowLeft size={24} className="text-foreground" />
-          </Pressable>
+          {isCompleteMode ? (
+            <View className="w-10 h-10" />
+          ) : (
+            <Pressable
+              onPress={() => router.back()}
+              className="w-10 h-10 items-center justify-center"
+            >
+              <ArrowLeft size={24} className="text-foreground" />
+            </Pressable>
+          )}
 
           <Text className="text-lg font-semibold text-foreground">
             Profile Details
@@ -269,8 +289,14 @@ export default function PersonDetailScreen() {
 
               <View className="flex-row gap-2">
                 <View className="flex-row items-center gap-1 bg-primary/10 px-3 py-1.5 rounded-full">
-                  <Heart size={14} className="text-primary" fill="rgb(20 184 166)" />
-                  <Text className="text-sm text-primary font-medium">Profile</Text>
+                  <Heart
+                    size={14}
+                    className="text-primary"
+                    fill="rgb(20 184 166)"
+                  />
+                  <Text className="text-sm text-primary font-medium">
+                    Profile
+                  </Text>
                 </View>
                 <View className="flex-row items-center gap-1 bg-muted px-3 py-1.5 rounded-full">
                   <Calendar size={14} className="text-muted-foreground" />
@@ -293,65 +319,6 @@ export default function PersonDetailScreen() {
                 onOpenRecord={handleOpenRecord}
               />
             ))}
-          </View>
-
-          {/* Contacts section */}
-          <View className="px-6 mt-4">
-            <Text className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2 px-1">
-              Contacts
-            </Text>
-
-            <View className="flex-row items-center justify-end mb-2">
-              <TouchableOpacity
-                onPress={() =>
-                  router.push({
-                    pathname: "/(vault)/contacts/add",
-                    params: {
-                      profileId: person.id,
-                      profileType: "person",
-                      context: "person",
-                    },
-                  } as any)
-                }
-                className="px-3 py-1.5 rounded-full bg-primary"
-              >
-                <Text className="text-xs font-semibold text-primary-foreground">
-                  Add Contact
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            {contacts.length === 0 ? (
-              <View className="bg-card border border-border rounded-xl px-4 py-3">
-                <Text className="text-sm text-muted-foreground">
-                  No linked contacts yet.
-                </Text>
-              </View>
-            ) : (
-              <View className="gap-2">
-                {contacts.map((contact) => (
-                  <TouchableOpacity
-                    key={contact.id}
-                    onPress={() =>
-                      router.push({
-                        pathname: "/(vault)/contacts/add",
-                        params: { id: contact.id },
-                      } as any)
-                    }
-                    className="bg-card border border-border rounded-xl px-4 py-3"
-                  >
-                    <Text className="text-sm font-semibold text-foreground">
-                      {`${contact.firstName} ${contact.lastName}`.trim()}
-                    </Text>
-                    <Text className="text-xs text-muted-foreground mt-1">
-                      {[contact.categories?.[0], contact.phone]
-                        .filter(Boolean)
-                        .join(" • ") || "Contact"}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
           </View>
         </ScrollView>
 

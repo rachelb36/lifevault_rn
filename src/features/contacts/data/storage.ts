@@ -1,5 +1,15 @@
 // src/features/contacts/data/storage.ts
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { isLocalOnly } from "@/shared/config/dataMode";
+import { apolloClient } from "@/lib/apollo";
+import {
+  fetchContacts as fetchContactsFromServer,
+  serverCreateContact,
+  serverUpdateContact,
+  serverDeleteContact,
+  serverLinkContactToEntity,
+  serverUnlinkContactFromEntity,
+} from "@/lib/graphql/contacts";
 
 export type ContactCategory =
   | "Medical"
@@ -56,53 +66,22 @@ export type Contact = {
 
 const KEY = "contacts_v1";
 
-/** Display helper so UI doesn’t have to rebuild name logic everywhere */
+/** Display helper so UI doesn't have to rebuild name logic everywhere */
 export function getContactDisplayName(c: Pick<Contact, "firstName" | "lastName">) {
   return `${c.firstName || ""} ${c.lastName || ""}`.trim();
 }
 
-/** Best-effort legacy name splitter */
-function splitLegacyName(full: string): { firstName: string; lastName: string } {
-  const cleaned = String(full || "").trim().replace(/\s+/g, " ");
-  if (!cleaned) return { firstName: "", lastName: "" };
-
-  const parts = cleaned.split(" ");
-  if (parts.length === 1) return { firstName: parts[0], lastName: "" };
-
-  return {
-    firstName: parts.slice(0, -1).join(" "),
-    lastName: parts.slice(-1)[0],
-  };
-}
-
-/** Normalize any stored object (legacy or current) into Contact v2 */
+/** Normalize stored object into Contact */
 function normalizeContact(raw: any): Contact | null {
   if (!raw || typeof raw !== "object") return null;
 
   const id = raw.id ? String(raw.id) : "";
   if (!id) return null;
 
-  // New shape
-  const hasNewNameFields =
-    typeof raw.firstName === "string" || typeof raw.lastName === "string";
-
-  // Legacy shape
-  const legacyName = typeof raw.name === "string" ? raw.name : "";
-  const legacyCompany = typeof raw.company === "string" ? raw.company : "";
-
-  const { firstName: legacyFirst, lastName: legacyLast } = splitLegacyName(legacyName);
-
-  const firstName = (hasNewNameFields ? String(raw.firstName || "") : legacyFirst).trim();
-  const lastName = (hasNewNameFields ? String(raw.lastName || "") : legacyLast).trim();
-
-  // organization can come from:
-  // - new field: organization
-  // - old experiments: company
-  // - old experiments: clinic
-  const organization =
-    (typeof raw.organization === "string" ? raw.organization : "") ||
-    legacyCompany ||
-    (typeof raw.clinic === "string" ? raw.clinic : "");
+  const firstName = String(raw.firstName || "").trim();
+  const lastName = String(raw.lastName || "").trim();
+  if (!firstName && !lastName) return null;
+  const organization = String(raw.organization || "").trim();
 
   // categories must be array (default to Other)
   const categories: ContactCategory[] = Array.isArray(raw.categories)
@@ -114,14 +93,13 @@ function normalizeContact(raw: any): Contact | null {
   const finalCategories: ContactCategory[] =
     categories.length > 0 ? categories : ["Other"];
 
-  // linkedProfiles should stay array if present
   const linkedProfiles: LinkedProfile[] | undefined = Array.isArray(raw.linkedProfiles)
     ? (raw.linkedProfiles
         .map((p: any) => {
           if (!p || typeof p !== "object") return null;
           const pid = p.id ? String(p.id) : "";
           const pname = p.name ? String(p.name) : "";
-          const ptype: "person" | "pet" = p.type === "pet" ? "pet" : "person"; // default everything else to person
+          const ptype: "person" | "pet" = p.type === "pet" ? "pet" : "person";
           if (!pid || !pname) return null;
           return {
             id: pid,
@@ -133,11 +111,9 @@ function normalizeContact(raw: any): Contact | null {
         .filter(Boolean) as LinkedProfile[])
     : undefined;
 
-  // isFavorite default false
   const isFavorite = typeof raw.isFavorite === "boolean" ? raw.isFavorite : false;
 
-  // phone required in your UI, but storage migration should keep what exists
-  const phone = raw.phone ? String(raw.phone) : "";
+  const phone = String(raw.phone || "");
   const email = raw.email ? String(raw.email) : undefined;
   const photo = raw.photo ? String(raw.photo) : undefined;
 
@@ -145,7 +121,7 @@ function normalizeContact(raw: any): Contact | null {
     id,
     firstName,
     lastName,
-    organization: organization.trim() ? organization.trim() : undefined,
+    organization: organization || undefined,
     photo,
     phone,
     email,
@@ -156,61 +132,54 @@ function normalizeContact(raw: any): Contact | null {
   };
 }
 
+// ─── Reads ──────────────────────────────────────────
+
 export async function getContacts(): Promise<Contact[]> {
+  if (!(await isLocalOnly())) {
+    return fetchContactsFromServer(apolloClient);
+  }
+
   const raw = await AsyncStorage.getItem(KEY);
   if (!raw) return [];
 
   try {
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
-
-    const normalized: Contact[] = [];
-    let changed = false;
-
-    for (const item of parsed) {
-      const c = normalizeContact(item);
-      if (!c) {
-        // If there's junk/invalid data in storage, drop it and rewrite
-        changed = true;
-        continue;
-      }
-
-      normalized.push(c);
-
-      // Detect whether this item was legacy or malformed
-      const hasLegacyFields =
-        typeof item?.name === "string" ||
-        typeof item?.company === "string" ||
-        typeof item?.clinic === "string";
-
-      const missingRequiredNewFields =
-        typeof item?.firstName !== "string" ||
-        typeof item?.lastName !== "string";
-
-      const hadEmptyCategories =
-        !Array.isArray(item?.categories) || item.categories.length === 0;
-
-      if (hasLegacyFields || missingRequiredNewFields || hadEmptyCategories) {
-        changed = true;
-      }
-    }
-
-    // Auto-write back migrated format so everything becomes v2 going forward
-    if (changed) {
-      await AsyncStorage.setItem(KEY, JSON.stringify(normalized));
-    }
-
-    return normalized;
+    return parsed
+      .map((item) => normalizeContact(item))
+      .filter((item): item is Contact => Boolean(item));
   } catch {
     return [];
   }
 }
+
+// ─── Writes ─────────────────────────────────────────
 
 export async function saveContacts(next: Contact[]) {
   await AsyncStorage.setItem(KEY, JSON.stringify(next));
 }
 
 export async function upsertContact(input: Omit<Contact, "id"> & { id?: string }) {
+  if (!(await isLocalOnly())) {
+    // Ensure we never save empty categories
+    const normalized = {
+      ...input,
+      categories: input.categories?.length ? input.categories : (["Other"] as ContactCategory[]),
+    };
+
+    if (normalized.id) {
+      // Update existing server contact
+      return serverUpdateContact(apolloClient, {
+        ...normalized,
+        id: normalized.id,
+        isFavorite: normalized.isFavorite ?? false,
+      } as Contact);
+    }
+    // Create new server contact
+    return serverCreateContact(apolloClient, normalized);
+  }
+
+  // ── Local-only path ──
   const all = await getContacts();
 
   // Ensure we never save empty categories
@@ -240,7 +209,30 @@ export async function upsertContact(input: Omit<Contact, "id"> & { id?: string }
 }
 
 export async function deleteContact(id: string) {
+  if (!(await isLocalOnly())) {
+    await serverDeleteContact(apolloClient, id);
+    return;
+  }
+
   const all = await getContacts();
   const next = all.filter((c) => c.id !== id);
   await saveContacts(next);
+}
+
+// ─── Entity Linking ─────────────────────────────────
+
+export async function linkContactToEntity(contactId: string, entityId: string) {
+  if (!(await isLocalOnly())) {
+    await serverLinkContactToEntity(apolloClient, contactId, entityId);
+    return;
+  }
+  // Local mode: no-op (linkedProfiles managed separately in local UI)
+}
+
+export async function unlinkContactFromEntity(contactId: string, entityId: string) {
+  if (!(await isLocalOnly())) {
+    await serverUnlinkContactFromEntity(apolloClient, contactId, entityId);
+    return;
+  }
+  // Local mode: no-op
 }

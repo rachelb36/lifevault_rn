@@ -21,6 +21,7 @@ import {
   Star,
   ChevronRight,
   MapPin,
+  ArrowLeft,
 } from "lucide-react-native";
 import { cssInterop } from "nativewind";
 import { useFocusEffect, useRouter } from "expo-router";
@@ -44,6 +45,7 @@ cssInterop(User, { className: { target: "style", nativeStyleToProp: { color: tru
 cssInterop(Star, { className: { target: "style", nativeStyleToProp: { color: true } } });
 cssInterop(ChevronRight, { className: { target: "style", nativeStyleToProp: { color: true } } });
 cssInterop(MapPin, { className: { target: "style", nativeStyleToProp: { color: true } } });
+cssInterop(ArrowLeft, { className: { target: "style", nativeStyleToProp: { color: true } } });
 
 // Types
 type CategoryType = "All" | ContactCategory;
@@ -143,6 +145,10 @@ const INITIAL_CONTACTS_V2: Contact[] = [
 
 export default function DirectoryScreen() {
   const router = useRouter();
+  const handleBack = () => {
+    if ((router as any).canGoBack?.()) router.back();
+    else router.replace("/(tabs)");
+  };
 
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -341,7 +347,13 @@ export default function DirectoryScreen() {
       <SafeAreaView className="flex-1 bg-background">
         {/* Header */}
         <View className="px-6 py-4">
-          <Text className="text-2xl font-bold text-foreground mb-4">Directory</Text>
+          <View className="flex-row items-center justify-between mb-4">
+            <TouchableOpacity onPress={handleBack} className="w-10 h-10 items-center justify-center" activeOpacity={0.85}>
+              <ArrowLeft size={22} className="text-foreground" />
+            </TouchableOpacity>
+            <Text className="text-2xl font-bold text-foreground">Directory</Text>
+            <View className="w-10" />
+          </View>
 
           {/* Search Bar */}
           <View className="bg-input border border-border rounded-xl px-4 py-3 flex-row items-center mb-4">
@@ -396,6 +408,7 @@ export default function DirectoryScreen() {
           renderItem={ContactItem}
           keyExtractor={(item) => item.id}
           contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 128 }}
+          showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           ListEmptyComponent={
             <View className="items-center justify-center py-12">

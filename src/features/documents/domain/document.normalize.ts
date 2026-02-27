@@ -79,7 +79,7 @@ function normalizeOne(raw: unknown): DocumentV1 | null {
   };
 }
 
-export function normalizeAndMigrateDocuments(raw: unknown): DocumentV1[] {
+export function normalizeDocuments(raw: unknown): DocumentV1[] {
   const input = Array.isArray(raw) ? raw : [];
   const mapped = input.map((item) => normalizeOne(item)).filter((x): x is DocumentV1 => Boolean(x));
 

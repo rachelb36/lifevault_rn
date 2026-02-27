@@ -11,7 +11,8 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { ChevronDown, Check } from "lucide-react-native";
+import { ChevronDown, Check, Search } from "lucide-react-native";
+import * as Contacts from "expo-contacts";
 
 import KeyboardDismiss from "@/shared/ui/KeyboardDismiss";
 import {
@@ -130,6 +131,10 @@ export default function AddContactScreen() {
   const [availableProfiles, setAvailableProfiles] = useState<LinkedProfile[]>([]);
   const [editing, setEditing] = useState<Contact | null>(null);
 
+  const [showContactPicker, setShowContactPicker] = useState(false);
+  const [deviceContacts, setDeviceContacts] = useState<Contacts.ExistingContact[]>([]);
+  const [contactSearch, setContactSearch] = useState("");
+
   const title = editing ? "Edit Contact" : "Add Contact";
   const primaryCategory = (category || "Other") as ContactCategory;
 
@@ -137,8 +142,54 @@ export default function AddContactScreen() {
     return !!category && ORG_CATEGORIES.includes(category as ContactCategory);
   }, [category]);
 
-  const handleImportFromContacts = useCallback(() => {
-    Alert.alert("Coming soon", "iOS Contacts import will be added here.");
+  const filteredDeviceContacts = useMemo(() => {
+    if (!contactSearch.trim()) return deviceContacts;
+    const q = contactSearch.toLowerCase();
+    return deviceContacts.filter((c) => {
+      const name = `${c.firstName || ""} ${c.lastName || ""}`.toLowerCase();
+      return name.includes(q) || (c.company || "").toLowerCase().includes(q);
+    });
+  }, [deviceContacts, contactSearch]);
+
+  const handleImportFromContacts = useCallback(async () => {
+    const { status } = await Contacts.requestPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert(
+        "Permission Required",
+        "LifeVault needs access to your contacts. You can enable this in Settings.",
+      );
+      return;
+    }
+
+    const { data } = await Contacts.getContactsAsync({
+      fields: [
+        Contacts.Fields.FirstName,
+        Contacts.Fields.LastName,
+        Contacts.Fields.PhoneNumbers,
+        Contacts.Fields.Emails,
+        Contacts.Fields.Company,
+        Contacts.Fields.Image,
+      ],
+      sort: Contacts.SortTypes.LastName,
+    });
+
+    setDeviceContacts(data);
+    setContactSearch("");
+    setShowContactPicker(true);
+  }, []);
+
+  const handleSelectDeviceContact = useCallback((contact: Contacts.ExistingContact) => {
+    setFirstName(contact.firstName || "");
+    setLastName(contact.lastName || "");
+    setOrganization(contact.company || "");
+
+    const primaryPhone = contact.phoneNumbers?.[0]?.number || "";
+    setPhone(primaryPhone);
+
+    const primaryEmail = contact.emails?.[0]?.email || "";
+    setEmail(primaryEmail);
+
+    setShowContactPicker(false);
   }, []);
 
   // Load profiles from canonical profile storage
@@ -432,6 +483,65 @@ export default function AddContactScreen() {
             </Text>
           </TouchableOpacity>
         </ScrollView>
+
+        <Modal
+          visible={showContactPicker}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setShowContactPicker(false)}
+        >
+          <View className="flex-1 justify-end bg-black/50">
+            <View className="bg-background rounded-t-3xl border-t border-border" style={{ maxHeight: "80%" }}>
+              <View className="px-6 pt-6 pb-3">
+                <View className="flex-row justify-between items-center mb-4">
+                  <Text className="text-lg font-bold text-foreground">Select Contact</Text>
+                  <TouchableOpacity onPress={() => setShowContactPicker(false)} activeOpacity={0.85}>
+                    <Text className="text-primary font-semibold">Cancel</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <View className="flex-row items-center bg-card border border-border rounded-xl px-4 py-2.5">
+                  <Search size={18} className="text-muted-foreground mr-2" />
+                  <TextInput
+                    className="flex-1 text-foreground text-base"
+                    placeholder="Search contacts..."
+                    placeholderTextColor="rgb(168 162 158)"
+                    value={contactSearch}
+                    onChangeText={setContactSearch}
+                    autoFocus
+                  />
+                </View>
+              </View>
+
+              <ScrollView className="px-6 pb-6" keyboardShouldPersistTaps="handled">
+                {filteredDeviceContacts.length === 0 ? (
+                  <Text className="text-muted-foreground text-center py-8">
+                    {deviceContacts.length === 0 ? "No contacts found on device" : "No matches"}
+                  </Text>
+                ) : (
+                  filteredDeviceContacts.map((c) => (
+                    <TouchableOpacity
+                      key={c.id}
+                      onPress={() => handleSelectDeviceContact(c)}
+                      className="py-3 border-b border-border"
+                      activeOpacity={0.85}
+                    >
+                      <Text className="text-foreground font-medium">
+                        {[c.firstName, c.lastName].filter(Boolean).join(" ") || "No Name"}
+                      </Text>
+                      {c.phoneNumbers?.[0]?.number && (
+                        <Text className="text-muted-foreground text-xs mt-0.5">{c.phoneNumbers[0].number}</Text>
+                      )}
+                      {c.company && (
+                        <Text className="text-muted-foreground text-xs mt-0.5">{c.company}</Text>
+                      )}
+                    </TouchableOpacity>
+                  ))
+                )}
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
       </SafeAreaView>
     </KeyboardDismiss>
   );

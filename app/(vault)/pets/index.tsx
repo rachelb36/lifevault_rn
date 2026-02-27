@@ -10,7 +10,7 @@
 import React, { useCallback, useMemo, useState } from "react";
 import { FlatList, Image, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Plus, Search, PawPrint, ChevronRight } from "lucide-react-native";
+import { ArrowLeft, Plus, Search, PawPrint, ChevronRight } from "lucide-react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 
 import KeyboardDismiss from "@/shared/ui/KeyboardDismiss";
@@ -24,6 +24,10 @@ function normalize(s?: string) {
 
 export default function PetsIndexScreen() {
   const router = useRouter();
+  const handleBack = () => {
+    if ((router as any).canGoBack?.()) router.back();
+    else router.replace("/(tabs)");
+  };
 
   const [pets, setPets] = useState<PetProfile[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -58,6 +62,9 @@ export default function PetsIndexScreen() {
     <KeyboardDismiss>
       <SafeAreaView className="flex-1 bg-background">
         <View className="px-6 py-4 flex-row items-center justify-between">
+          <TouchableOpacity onPress={handleBack} className="w-10 h-10 items-center justify-center" activeOpacity={0.85}>
+            <ArrowLeft size={22} className="text-foreground" />
+          </TouchableOpacity>
           <Text className="text-2xl font-bold text-foreground">Pets</Text>
           <View className="flex-row items-center gap-3">
             <ThemeToggle />
@@ -125,6 +132,7 @@ export default function PetsIndexScreen() {
             )}
             refreshing={loading}
             onRefresh={reload}
+            showsVerticalScrollIndicator={false}
           />
         )}
       </SafeAreaView>

@@ -22,21 +22,15 @@ import {
   buildNamesSummary,
   notAddedSummary,
 } from "@/shared/utils/summary";
-import AttachmentSourceSheet from "@/shared/attachments/AttachmentSourceSheet";
-import type { Attachment } from "@/shared/attachments/attachment.model";
 import { getRecordData } from "@/shared/utils/recordData";
 export type { LifeVaultRecord } from "@/domain/records/record.model";
 
 type Props = {
   category: RecordCategory;
   records: LifeVaultRecord[];
-  onAdd: (recordType: RecordType, initialAttachment?: Attachment) => void;
+  onAdd: (recordType: RecordType) => void;
   onEdit: (record: LifeVaultRecord) => void;
-  onOpen: (
-    record: LifeVaultRecord,
-    initialAttachment?: Attachment,
-    replaceExistingAttachment?: boolean,
-  ) => void;
+  onOpen: (record: LifeVaultRecord) => void;
 };
 
 function labelize(value: string) {
@@ -97,10 +91,6 @@ export default function RecordSection({
   const isLandscape = width > height;
 
   const [expanded, setExpanded] = useState(false);
-  const [identSheetVisible, setIdentSheetVisible] = useState(false);
-  const [selectedIdentType, setSelectedIdentType] = useState<RecordType | null>(
-    null,
-  );
 
   const categoryRecordTypes = useMemo(
     () => getTypesForCategory(category),
@@ -123,7 +113,7 @@ export default function RecordSection({
   const isTravelCategory = category === "TRAVEL";
   const isIdentificationCategory = category === "IDENTIFICATION";
   const isDirectSingletonCategory =
-    (category === "PREFERENCES" || category === "SIZES") &&
+    category === "PREFERENCES" &&
     categoryRecordTypes.length === 1;
 
   const travelTypes: RecordType[] = [
@@ -201,35 +191,6 @@ export default function RecordSection({
     onAdd(recordType);
   };
 
-  const openIdentificationSheet = (recordType: RecordType) => {
-    setSelectedIdentType(recordType);
-    setIdentSheetVisible(true);
-  };
-
-  const onIdentificationPicked = (attachment: Attachment) => {
-    if (!selectedIdentType) return;
-    const existing = getLatestForType(selectedIdentType);
-    if (existing) {
-      onOpen(existing, attachment, true);
-    } else {
-      onAdd(selectedIdentType, attachment);
-    }
-    setIdentSheetVisible(false);
-    setSelectedIdentType(null);
-  };
-
-  const onIdentificationManual = () => {
-    if (!selectedIdentType) return;
-    const existing = getLatestForType(selectedIdentType);
-    if (existing) {
-      onOpen(existing);
-    } else {
-      onAdd(selectedIdentType);
-    }
-    setIdentSheetVisible(false);
-    setSelectedIdentType(null);
-  };
-
   const handleSectionHeaderPress = () => {
     if (isDirectSingletonCategory) {
       const singletonType = categoryRecordTypes[0];
@@ -290,20 +251,14 @@ export default function RecordSection({
                     key={recordType}
                     title={title}
                     summary={summary}
-                    onPress={() => {
-                      if (latest) {
-                        onOpen(latest);
-                        return;
-                      }
-                      openIdentificationSheet(recordType);
-                    }}
+                    onPress={() => openType(recordType)}
                   />
                 );
               })}
             </View>
           ) : (
             <>
-              {/* Add “pills” */}
+              {/* Add "pills" */}
               {categoryRecordTypes.length > 0 && (
                 <View
                   className={
@@ -347,7 +302,7 @@ export default function RecordSection({
               )}
 
               {/* Records list
-              Per your request: when empty, do NOT show “No records yet.”
+              Per your request: when empty, do NOT show "No records yet."
               Just show pills above (expanded-only) and otherwise nothing here. */}
               {categoryRecords.length > 0 && (
                 <View>
@@ -369,7 +324,7 @@ export default function RecordSection({
                           "Record"}
                       </Text>
 
-                      {/* Keep “updated at” small + subtle */}
+                      {/* Keep "updated at" small + subtle */}
                       {record.updatedAt ? (
                         <Text className="mt-1 text-[11px] text-muted-foreground">
                           Updated {formatDateLabel(record.updatedAt, "—")}
@@ -383,20 +338,6 @@ export default function RecordSection({
           )}
         </View>
       )}
-      <AttachmentSourceSheet
-        visible={identSheetVisible}
-        onClose={() => {
-          setIdentSheetVisible(false);
-          setSelectedIdentType(null);
-        }}
-        onPicked={onIdentificationPicked}
-        onManual={onIdentificationManual}
-        title={
-          selectedIdentType
-            ? `${getRecordMeta(selectedIdentType)?.label ?? "Record"} Attachment`
-            : "Add Attachment"
-        }
-      />
     </View>
   );
 }

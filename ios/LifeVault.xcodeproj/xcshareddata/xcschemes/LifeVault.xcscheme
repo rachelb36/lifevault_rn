@@ -15,9 +15,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "13B07F861A680F5B00A75B9A"
-               BuildableName = "exponativewind.app"
-               BlueprintName = "exponativewind"
-               ReferencedContainer = "container:exponativewind.xcodeproj">
+               BuildableName = "LifeVault.app"
+               BlueprintName = "LifeVault"
+               ReferencedContainer = "container:LifeVault.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -33,9 +33,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "00E356ED1AD99517003FC87E"
-               BuildableName = "exponativewindTests.xctest"
-               BlueprintName = "exponativewindTests"
-               ReferencedContainer = "container:exponativewind.xcodeproj">
+               BuildableName = "LifeVaultTests.xctest"
+               BlueprintName = "LifeVaultTests"
+               ReferencedContainer = "container:LifeVault.xcodeproj">
             </BuildableReference>
          </TestableReference>
       </Testables>
@@ -55,9 +55,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "13B07F861A680F5B00A75B9A"
-            BuildableName = "exponativewind.app"
-            BlueprintName = "exponativewind"
-            ReferencedContainer = "container:exponativewind.xcodeproj">
+            BuildableName = "LifeVault.app"
+            BlueprintName = "LifeVault"
+            ReferencedContainer = "container:LifeVault.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>
@@ -72,9 +72,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "13B07F861A680F5B00A75B9A"
-            BuildableName = "exponativewind.app"
-            BlueprintName = "exponativewind"
-            ReferencedContainer = "container:exponativewind.xcodeproj">
+            BuildableName = "LifeVault.app"
+            BlueprintName = "LifeVault"
+            ReferencedContainer = "container:LifeVault.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>

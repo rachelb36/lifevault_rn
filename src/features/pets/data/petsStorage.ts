@@ -1,8 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import * as SecureStore from "expo-secure-store";
 
 import type { PetProfileV1 } from "@/features/pets/domain/pet.schema";
-import { normalizeAndMigratePetList } from "@/features/pets/domain/pet.migrate";
+import { normalizePetList } from "@/features/pets/domain/pet.normalize";
 
 export const PETS_KEY = "pets_v1";
 
@@ -12,21 +11,9 @@ async function readRawPets(): Promise<unknown> {
     try {
       return JSON.parse(raw);
     } catch {
-      // fallthrough
-    }
-  }
-
-  const legacy = await SecureStore.getItemAsync(PETS_KEY);
-  if (legacy) {
-    try {
-      const parsed = JSON.parse(legacy);
-      await AsyncStorage.setItem(PETS_KEY, JSON.stringify(parsed));
-      return parsed;
-    } catch {
       return [];
     }
   }
-
   return [];
 }
 
@@ -39,6 +26,10 @@ function sanitizePet(input: PetProfileV1): PetProfileV1 {
     kindOtherText: input.kindOtherText?.trim() || undefined,
     breed: input.breed?.trim() || undefined,
     breedOtherText: input.breedOtherText?.trim() || undefined,
+    dob: input.dob?.trim() || undefined,
+    dateType: input.dateType?.trim() || undefined,
+    adoptionDate: input.adoptionDate?.trim() || undefined,
+    gender: input.gender?.trim() || undefined,
     avatarUri: input.avatarUri?.trim() || undefined,
     createdAt: input.createdAt || new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -47,9 +38,7 @@ function sanitizePet(input: PetProfileV1): PetProfileV1 {
 
 export async function listPets(): Promise<PetProfileV1[]> {
   const raw = await readRawPets();
-  const migrated = normalizeAndMigratePetList(raw);
-  await AsyncStorage.setItem(PETS_KEY, JSON.stringify(migrated));
-  return migrated;
+  return normalizePetList(raw);
 }
 
 export async function getPetById(petId: string): Promise<PetProfileV1 | null> {

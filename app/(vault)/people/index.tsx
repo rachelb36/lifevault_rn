@@ -9,9 +9,22 @@
  * Route: /(vault)/people
  */
 import React, { useCallback, useMemo, useState } from "react";
-import { FlatList, Image, Text, TextInput, TouchableOpacity, View } from "react-native";
+import {
+  FlatList,
+  Image,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Plus, Search, User, ChevronRight } from "lucide-react-native";
+import {
+  ArrowLeft,
+  Plus,
+  Search,
+  User,
+  ChevronRight,
+} from "lucide-react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 
 import { ThemeToggle } from "@/shared/ui/ThemeToggle";
@@ -45,13 +58,23 @@ function getAgeYears(dob?: string) {
 function groupRank(p: PersonProfile) {
   if (p.isPrimary || normalize(p.relationship) === "self") return 0;
   const rel = normalize(p.relationship);
-  if (["spouse", "partner", "husband", "wife"].some((x) => rel.includes(x))) return 1;
-  if (["child", "son", "daughter", "dependent", "kid"].some((x) => rel.includes(x))) return 3;
+  if (["spouse", "partner", "husband", "wife"].some((x) => rel.includes(x)))
+    return 1;
+  if (
+    ["child", "son", "daughter", "dependent", "kid"].some((x) =>
+      rel.includes(x),
+    )
+  )
+    return 3;
   return 2;
 }
 
 export default function PeopleIndexScreen() {
   const router = useRouter();
+  const handleBack = () => {
+    if ((router as any).canGoBack?.()) router.back();
+    else router.replace("/(tabs)");
+  };
 
   const [searchQuery, setSearchQuery] = useState("");
   const [people, setPeople] = useState<PersonProfile[]>([]);
@@ -69,7 +92,7 @@ export default function PeopleIndexScreen() {
   useFocusEffect(
     useCallback(() => {
       reload();
-    }, [reload])
+    }, [reload]),
   );
 
   const filtered = useMemo(() => {
@@ -77,7 +100,11 @@ export default function PeopleIndexScreen() {
     return [...people]
       .filter((p) => {
         if (!q) return true;
-        return [p.firstName, p.lastName, p.preferredName, p.relationship].filter(Boolean).join(" ").toLowerCase().includes(q);
+        return [p.firstName, p.lastName, p.preferredName, p.relationship]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase()
+          .includes(q);
       })
       .sort((a, b) => {
         const g = groupRank(a) - groupRank(b);
@@ -94,7 +121,10 @@ export default function PeopleIndexScreen() {
         className="bg-card border border-border rounded-2xl p-4 flex-row items-center mb-3 active:opacity-70"
       >
         {item.avatarUri ? (
-          <Image source={{ uri: item.avatarUri }} className="w-14 h-14 rounded-full bg-muted" />
+          <Image
+            source={{ uri: item.avatarUri }}
+            className="w-14 h-14 rounded-full bg-muted"
+          />
         ) : (
           <View className="w-14 h-14 rounded-full bg-muted items-center justify-center">
             <User size={22} className="text-muted-foreground" />
@@ -103,15 +133,21 @@ export default function PeopleIndexScreen() {
 
         <View className="flex-1 ml-4">
           <View className="flex-row items-center gap-2 flex-wrap">
-            <Text className="text-lg font-semibold text-foreground">{displayName(item)}</Text>
-            {(item.isPrimary || normalize(item.relationship) === "self") ? (
+            <Text className="text-lg font-semibold text-foreground">
+              {displayName(item)}
+            </Text>
+            {item.isPrimary || normalize(item.relationship) === "self" ? (
               <View className="bg-primary/10 px-2 py-0.5 rounded-full">
-                <Text className="text-xs text-primary font-semibold">Primary</Text>
+                <Text className="text-xs text-primary font-semibold">
+                  Primary
+                </Text>
               </View>
             ) : null}
           </View>
           <Text className="text-sm text-muted-foreground mt-0.5">
-            {[item.relationship || "Person", age != null ? `Age ${age}` : ""].filter(Boolean).join(" • ")}
+            {[item.relationship || "Person", age != null ? `Age ${age}` : ""]
+              .filter(Boolean)
+              .join(" • ")}
           </Text>
         </View>
 
@@ -124,10 +160,21 @@ export default function PeopleIndexScreen() {
     <KeyboardDismiss>
       <SafeAreaView className="flex-1 bg-background">
         <View className="px-6 py-4 flex-row items-center justify-between">
+          <TouchableOpacity
+            onPress={handleBack}
+            className="w-10 h-10 items-center justify-center"
+            activeOpacity={0.85}
+          >
+            <ArrowLeft size={22} className="text-foreground" />
+          </TouchableOpacity>
           <Text className="text-2xl font-bold text-foreground">People</Text>
           <View className="flex-row items-center gap-3">
             <ThemeToggle />
-            <TouchableOpacity onPress={() => router.push("/(vault)/people/add")} className="bg-primary w-10 h-10 rounded-full items-center justify-center" activeOpacity={0.9}>
+            <TouchableOpacity
+              onPress={() => router.push("/(vault)/people/add")}
+              className="bg-primary w-10 h-10 rounded-full items-center justify-center"
+              activeOpacity={0.9}
+            >
               <Plus size={20} className="text-primary-foreground" />
             </TouchableOpacity>
           </View>
@@ -155,10 +202,18 @@ export default function PeopleIndexScreen() {
             <View className="w-20 h-20 bg-muted rounded-full items-center justify-center mb-4">
               <User size={40} className="text-muted-foreground" />
             </View>
-            <Text className="text-xl font-semibold text-foreground mb-2">No people yet</Text>
-            <TouchableOpacity onPress={() => router.push("/(vault)/people/add")} className="bg-primary rounded-xl py-3 px-8 flex-row items-center gap-2" activeOpacity={0.9}>
+            <Text className="text-xl font-semibold text-foreground mb-2">
+              No people yet
+            </Text>
+            <TouchableOpacity
+              onPress={() => router.push("/(vault)/people/add")}
+              className="bg-primary rounded-xl py-3 px-8 flex-row items-center gap-2"
+              activeOpacity={0.9}
+            >
               <Plus size={20} className="text-primary-foreground" />
-              <Text className="text-primary-foreground font-semibold">Add Person</Text>
+              <Text className="text-primary-foreground font-semibold">
+                Add Person
+              </Text>
             </TouchableOpacity>
           </View>
         ) : (
@@ -166,7 +221,10 @@ export default function PeopleIndexScreen() {
             data={filtered}
             keyExtractor={(item) => item.id}
             renderItem={renderCard}
-            contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 128 }}
+            contentContainerStyle={{
+              paddingHorizontal: 24,
+              paddingBottom: 128,
+            }}
             showsVerticalScrollIndicator={false}
             refreshing={loading}
             onRefresh={reload}

@@ -4,7 +4,15 @@ import { RecordType } from "@/domain/records/recordTypes";
 import { LifeVaultRecord } from "@/domain/records/record.model";
 import { normalizeAttachmentRefs } from "@/domain/documents/attachments";
 import { normalizeRecordDataForEdit, normalizeRecordDataForSave } from "@/features/records/forms/formDefs";
-import { ensureDocumentsStorageReady } from "@/features/documents/data/documentsStorage";
+import { ensureDocumentsStorageReady, updateDocLinksIndexForEntity } from "@/features/documents/data/documentsStorage";
+import { isLocalOnly } from "@/shared/config/dataMode";
+import { apolloClient } from "@/lib/apollo";
+import {
+  fetchRecordsForEntity as fetchRecordsFromServer,
+  serverUpsertRecord,
+  serverDeleteRecord,
+  type ServerRecord,
+} from "@/lib/graphql/records";
 
 export type StoredRecord = LifeVaultRecord & {
   payload?: Record<string, unknown>;
@@ -37,7 +45,32 @@ function normalizeRecord(r: any, entityId: string): StoredRecord {
   };
 }
 
+/** Map a ServerRecord into the local StoredRecord shape via the normalization pipeline. */
+function serverRecordToStored(sr: ServerRecord): StoredRecord {
+  return normalizeRecord(
+    {
+      id: sr.id,
+      entityId: sr.entityId,
+      recordType: sr.recordType,
+      payload: sr.payload,
+      isPrivate: sr.privacy === "SENSITIVE",
+      createdAt: sr.createdAt,
+      updatedAt: sr.updatedAt,
+    },
+    sr.entityId ?? "",
+  );
+}
+
+// ─── Reads ──────────────────────────────────────────
+
 export async function listRecordsForEntity(entityId: string): Promise<StoredRecord[]> {
+  if (!(await isLocalOnly())) {
+    const serverRecords = await fetchRecordsFromServer(apolloClient, entityId);
+    return serverRecords
+      .map(serverRecordToStored)
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  }
+
   await ensureDocumentsStorageReady();
   const raw = await AsyncStorage.getItem(keyForEntity(entityId));
   const parsed = raw ? JSON.parse(raw) : [];
@@ -49,15 +82,36 @@ export async function listRecordsForEntity(entityId: string): Promise<StoredReco
 }
 
 export async function getRecordById(entityId: string, recordId: string): Promise<StoredRecord | null> {
-  await ensureDocumentsStorageReady();
   const list = await listRecordsForEntity(entityId);
   return list.find((r) => r.id === recordId) ?? null;
 }
+
+// ─── Writes ─────────────────────────────────────────
 
 export async function upsertRecordForEntity(
   entityId: string,
   record: Partial<StoredRecord> & Pick<StoredRecord, "id" | "recordType"> & { updatedAt?: string | null; createdAt?: string | null }
 ): Promise<StoredRecord> {
+  if (!(await isLocalOnly())) {
+    const rawInput =
+      typeof record.data === "object" && record.data
+        ? record.data
+        : typeof record.payload === "object" && record.payload
+        ? record.payload
+        : {};
+    const data = normalizeRecordDataForSave(record.recordType, rawInput);
+
+    const sr = await serverUpsertRecord(apolloClient, {
+      recordId: record.id,
+      entityId,
+      recordType: record.recordType,
+      payload: data,
+      isPrivate: record.isPrivate,
+    });
+    return serverRecordToStored(sr);
+  }
+
+  // ── Local-only path ──
   await ensureDocumentsStorageReady();
   const list = await listRecordsForEntity(entityId);
   const existing = list.find((r) => r.id === record.id);
@@ -84,16 +138,23 @@ export async function upsertRecordForEntity(
   const next = idx >= 0 ? [...list.slice(0, idx), normalized, ...list.slice(idx + 1)] : [normalized, ...list];
 
   await AsyncStorage.setItem(keyForEntity(entityId), JSON.stringify(next));
+  await updateDocLinksIndexForEntity(entityId, next);
   return normalized;
 }
 
 export async function deleteRecordForEntity(entityId: string, recordId: string): Promise<void> {
+  if (!(await isLocalOnly())) {
+    await serverDeleteRecord(apolloClient, recordId);
+    return;
+  }
+
   const list = await listRecordsForEntity(entityId);
   const next = list.filter((r) => r.id !== recordId);
   await AsyncStorage.setItem(keyForEntity(entityId), JSON.stringify(next));
+  await updateDocLinksIndexForEntity(entityId, next);
 }
 
-// Backward-compatible aliases while screens migrate terminology.
+// Aliases kept for person-routed screens.
 export const listRecordsForPerson = listRecordsForEntity;
 export const upsertRecordForPerson = upsertRecordForEntity;
 export const deleteRecordForPerson = deleteRecordForEntity;

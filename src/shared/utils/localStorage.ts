@@ -1,5 +1,8 @@
 import * as SecureStore from "expo-secure-store";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { ENV } from "@/shared/config/env";
+import { PEOPLE_KEY } from "@/features/people/data/peopleStorage";
+import { PETS_KEY } from "@/features/pets/data/petsStorage";
 
 const LOCAL_ONLY_KEY = "localOnlyMode";
 const LOCAL_AUTH_KEY = "localAuth";
@@ -20,11 +23,16 @@ type LocalAuth = {
 };
 
 export async function getLocalOnlyMode(): Promise<boolean> {
+  // .env LOCAL_ONLY=true is authoritative — override any stale SecureStore value
+  if (ENV.LOCAL_ONLY) {
+    await SecureStore.setItemAsync(LOCAL_ONLY_KEY, "true");
+    return true;
+  }
+
   const stored = await SecureStore.getItemAsync(LOCAL_ONLY_KEY);
   if (stored === null) {
-    const envDefault = (process.env.EXPO_PUBLIC_LOCAL_ONLY || "").toLowerCase() === "true";
-    await SecureStore.setItemAsync(LOCAL_ONLY_KEY, envDefault ? "true" : "false");
-    return envDefault;
+    await SecureStore.setItemAsync(LOCAL_ONLY_KEY, "false");
+    return false;
   }
   return stored === "true";
 }
@@ -78,10 +86,10 @@ export async function seedLocalData(): Promise<void> {
   await SecureStore.setItemAsync("primaryProfileCreated", "true");
 
   const nowIso = new Date().toISOString();
-  const profiles = [
+  const people = [
     {
+      schemaVersion: 1,
       id: `dep-${Date.now()}`,
-      profileType: "PERSON",
       createdAt: nowIso,
       updatedAt: nowIso,
       firstName: "Jamie",
@@ -91,9 +99,12 @@ export async function seedLocalData(): Promise<void> {
       dob: "2014-06-20",
       isPrimary: false,
     },
+  ];
+
+  const pets = [
     {
+      schemaVersion: 1,
       id: `pet-${Date.now()}`,
-      profileType: "PET",
       createdAt: nowIso,
       updatedAt: nowIso,
       petName: "Max",
@@ -103,5 +114,6 @@ export async function seedLocalData(): Promise<void> {
     },
   ];
 
-  await AsyncStorage.setItem("profiles_v2", JSON.stringify(profiles));
+  await AsyncStorage.setItem(PEOPLE_KEY, JSON.stringify(people));
+  await AsyncStorage.setItem(PETS_KEY, JSON.stringify(pets));
 }

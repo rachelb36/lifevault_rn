@@ -1,17 +1,41 @@
 import React from "react";
-import { Alert, Keyboard, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from "react-native";
+import {
+  Alert,
+  Keyboard,
+  Modal,
+  ScrollView,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { RecordType } from "@/domain/records/recordTypes";
-import { getFieldsForRecordType, resolveLabel, type ObjectListItemField } from "@/features/records/forms/formDefs";
+import {
+  getFieldsForRecordType,
+  resolveLabel,
+  type ObjectListItemField,
+} from "@/features/records/forms/formDefs";
 import DatePickerModal from "@/shared/ui/DatePickerModal";
 import OptionPickerSheet from "@/shared/ui/OptionPickerSheet";
 import { parseDate, toIsoDateOnly } from "@/shared/utils/date";
-import { Contact, getContactDisplayName, getContacts } from "@/features/contacts/data/storage";
-import { DOG_VACCINATION_OPTIONS, CAT_VACCINATION_OPTIONS } from "@/features/pets/constants/options";
+import {
+  Contact,
+  getContactDisplayName,
+  getContacts,
+} from "@/features/contacts/data/storage";
+import {
+  DOG_VACCINATION_OPTIONS,
+  CAT_VACCINATION_OPTIONS,
+} from "@/features/pets/constants/options";
 import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 
 import { getFieldRenderer } from "./renderers/fieldRendererMap";
-import { isContactIdField, isDateField, safeStringArray } from "./renderers/fieldUtils";
+import {
+  isContactIdField,
+  isDateField,
+  safeStringArray,
+} from "./renderers/fieldUtils";
 import type { FieldRendererProps } from "./renderers/FieldRendererProps";
 
 type AnyRecord = Record<string, any> | null | undefined;
@@ -32,12 +56,15 @@ export default function RecordTypeFormRenderer({
 
   // Dynamically inject vaccination options based on pet kind
   const fields = React.useMemo(() => {
-    if (recordType !== "PET_VACCINATIONS" || !entityMeta?.kind) return rawFields;
+    if (recordType !== "PET_VACCINATIONS" || !entityMeta?.kind)
+      return rawFields;
     const kind = entityMeta.kind.toLowerCase();
     const vaccineOptions =
-      kind === "dog" ? DOG_VACCINATION_OPTIONS :
-      kind === "cat" ? CAT_VACCINATION_OPTIONS :
-      undefined;
+      kind === "dog"
+        ? DOG_VACCINATION_OPTIONS
+        : kind === "cat"
+          ? CAT_VACCINATION_OPTIONS
+          : undefined;
     if (!vaccineOptions) return rawFields;
     return rawFields.map((f) =>
       f.key === "vaccineName"
@@ -83,11 +110,19 @@ export default function RecordTypeFormRenderer({
     label: string;
     options: string[];
     multiSelect: boolean;
-  }>({ visible: false, fieldKey: "", label: "", options: [], multiSelect: true });
+  }>({
+    visible: false,
+    fieldKey: "",
+    label: "",
+    options: [],
+    multiSelect: true,
+  });
 
   const [contacts, setContacts] = React.useState<Contact[]>([]);
   const [contactSearch, setContactSearch] = React.useState("");
-  const [contactMode, setContactMode] = React.useState<"actions" | "directory">("actions");
+  const [contactMode, setContactMode] = React.useState<"actions" | "directory">(
+    "actions",
+  );
   const [contactPicker, setContactPicker] = React.useState<{
     visible: boolean;
     scope: "top" | "row";
@@ -102,7 +137,10 @@ export default function RecordTypeFormRenderer({
     title: "Select contact",
   });
 
-  const [expandedItem, setExpandedItem] = React.useState<{ fieldKey: string; index: number } | null>(null);
+  const [expandedItem, setExpandedItem] = React.useState<{
+    fieldKey: string;
+    index: number;
+  } | null>(null);
 
   // ---- Contact loading ----
 
@@ -114,7 +152,7 @@ export default function RecordTypeFormRenderer({
   useFocusEffect(
     React.useCallback(() => {
       loadContacts();
-    }, [loadContacts])
+    }, [loadContacts]),
   );
 
   // ---- Date picker ----
@@ -122,7 +160,12 @@ export default function RecordTypeFormRenderer({
   const openDatePicker = (
     fieldKey: string,
     fieldLabel: string,
-    listContext?: { listFieldKey: string; rowIndex: number; itemKey: string; currentValue: unknown },
+    listContext?: {
+      listFieldKey: string;
+      rowIndex: number;
+      itemKey: string;
+      currentValue: unknown;
+    },
   ) => {
     setDatePickerState({
       visible: true,
@@ -142,8 +185,17 @@ export default function RecordTypeFormRenderer({
   };
 
   const confirmDatePicker = (date: Date) => {
-    if (datePickerState.listFieldKey != null && datePickerState.rowIndex != null && datePickerState.itemKey) {
-      updateObjectListItem(datePickerState.listFieldKey, datePickerState.rowIndex, datePickerState.itemKey, toIsoDateOnly(date));
+    if (
+      datePickerState.listFieldKey != null &&
+      datePickerState.rowIndex != null &&
+      datePickerState.itemKey
+    ) {
+      updateObjectListItem(
+        datePickerState.listFieldKey,
+        datePickerState.rowIndex,
+        datePickerState.itemKey,
+        toIsoDateOnly(date),
+      );
       closeDatePicker();
       return;
     }
@@ -180,7 +232,12 @@ export default function RecordTypeFormRenderer({
 
   // ---- Picker sheet ----
 
-  const openPickerSheet = (fieldKey: string, label: string, options: string[], multiSelect: boolean) => {
+  const openPickerSheet = (
+    fieldKey: string,
+    label: string,
+    options: string[],
+    multiSelect: boolean,
+  ) => {
     setPickerSheet({ visible: true, fieldKey, label, options, multiSelect });
   };
 
@@ -190,23 +247,32 @@ export default function RecordTypeFormRenderer({
 
   const sheetSelected = pickerSheet.multiSelect
     ? safeStringArray((value as any)?.[pickerSheet.fieldKey])
-    : [String((value as any)?.[pickerSheet.fieldKey] ?? "").trim()].filter(Boolean);
+    : [String((value as any)?.[pickerSheet.fieldKey] ?? "").trim()].filter(
+        Boolean,
+      );
 
   const sheetOnToggle = (option: string) => {
     const key = pickerSheet.fieldKey;
     if (pickerSheet.multiSelect) {
       const current = safeStringArray((value as any)?.[key]);
       const normalized = option.trim();
-      const exists = current.some((item) => item.toLowerCase() === normalized.toLowerCase());
+      const exists = current.some(
+        (item) => item.toLowerCase() === normalized.toLowerCase(),
+      );
       setField(
         key,
         exists
-          ? current.filter((item) => item.toLowerCase() !== normalized.toLowerCase())
+          ? current.filter(
+              (item) => item.toLowerCase() !== normalized.toLowerCase(),
+            )
           : [...current, normalized],
       );
     } else {
       const current = String((value as any)?.[key] ?? "").trim();
-      setField(key, current.toLowerCase() === option.toLowerCase() ? "" : option);
+      setField(
+        key,
+        current.toLowerCase() === option.toLowerCase() ? "" : option,
+      );
     }
   };
 
@@ -218,11 +284,17 @@ export default function RecordTypeFormRenderer({
     return raw.filter((row: unknown) => !!row && typeof row === "object");
   };
 
-  const setObjectListItems = (fieldKey: string, nextItems: Record<string, unknown>[]) => {
+  const setObjectListItems = (
+    fieldKey: string,
+    nextItems: Record<string, unknown>[],
+  ) => {
     setField(fieldKey, nextItems);
   };
 
-  const addObjectListItem = (fieldKey: string, itemFields: ObjectListItemField[]) => {
+  const addObjectListItem = (
+    fieldKey: string,
+    itemFields: ObjectListItemField[],
+  ) => {
     const items = getObjectListItems(fieldKey);
     const nextItem: Record<string, unknown> = {};
     itemFields.forEach((itemField) => {
@@ -235,7 +307,12 @@ export default function RecordTypeFormRenderer({
     setObjectListItems(fieldKey, [...items, nextItem]);
   };
 
-  const updateObjectListItem = (fieldKey: string, index: number, itemKey: string, nextValue: unknown) => {
+  const updateObjectListItem = (
+    fieldKey: string,
+    index: number,
+    itemKey: string,
+    nextValue: unknown,
+  ) => {
     const items = getObjectListItems(fieldKey);
     const next = [...items];
     next[index] = { ...(next[index] ?? {}), [itemKey]: nextValue };
@@ -316,7 +393,12 @@ export default function RecordTypeFormRenderer({
       typeof contactPicker.rowIndex === "number" &&
       contactPicker.itemKey
     ) {
-      updateObjectListItem(contactPicker.fieldKey, contactPicker.rowIndex, contactPicker.itemKey, contactId);
+      updateObjectListItem(
+        contactPicker.fieldKey,
+        contactPicker.rowIndex,
+        contactPicker.itemKey,
+        contactId,
+      );
       closeContactPicker();
     }
   };
@@ -326,7 +408,9 @@ export default function RecordTypeFormRenderer({
   if (fields.length === 0) {
     return (
       <View>
-        <Text className="text-sm text-muted-foreground">No mapped form fields for {recordType}.</Text>
+        <Text className="text-sm text-muted-foreground">
+          No mapped form fields for {recordType}.
+        </Text>
       </View>
     );
   }
@@ -336,11 +420,17 @@ export default function RecordTypeFormRenderer({
       <View className="gap-4">
         {fields.map((f) => {
           const fieldValue = (value as any)?.[f.key];
-          const fLabel = resolveLabel(f.label, (value as Record<string, unknown>) ?? {});
+          const fLabel = resolveLabel(
+            f.label,
+            (value as Record<string, unknown>) ?? {},
+          );
 
           // Determine effective field type (heuristic overrides)
           let effectiveType: string = f.type ?? "text";
-          if (effectiveType !== "date" && isDateField(f.key, fLabel, f.placeholder)) {
+          if (
+            effectiveType !== "date" &&
+            isDateField(f.key, fLabel, f.placeholder)
+          ) {
             effectiveType = "date";
           }
           if (isContactIdField(f.key) && effectiveType !== "objectList") {
@@ -362,6 +452,7 @@ export default function RecordTypeFormRenderer({
             type: f.type,
             itemFields: f.itemFields,
             addLabel: f.addLabel,
+            forcePills: f.forcePills,
             setField,
             openDatePicker,
             openPickerSheet,
@@ -408,12 +499,22 @@ export default function RecordTypeFormRenderer({
       />
 
       {/* Contact Picker Modal */}
-      <Modal visible={contactPicker.visible} transparent animationType="slide" onRequestClose={closeContactPicker}>
+      <Modal
+        visible={contactPicker.visible}
+        transparent
+        animationType="slide"
+        onRequestClose={closeContactPicker}
+      >
         <View className="flex-1 justify-end bg-black/50">
           <View className="bg-background rounded-t-3xl border-t border-border max-h-[78%] p-6">
             <View className="flex-row items-center justify-between mb-4">
-              <Text className="text-lg font-semibold text-foreground">{contactPicker.title || "Select contact"}</Text>
-              <TouchableOpacity onPress={closeContactPicker} activeOpacity={0.85}>
+              <Text className="text-lg font-semibold text-foreground">
+                {contactPicker.title || "Select contact"}
+              </Text>
+              <TouchableOpacity
+                onPress={closeContactPicker}
+                activeOpacity={0.85}
+              >
                 <Text className="text-primary font-semibold">Done</Text>
               </TouchableOpacity>
             </View>
@@ -421,12 +522,21 @@ export default function RecordTypeFormRenderer({
             {contactMode === "actions" ? (
               <View className="gap-3">
                 <TouchableOpacity
-                  onPress={() => Alert.alert("Coming soon", "Import from device contacts is not wired yet.")}
+                  onPress={() =>
+                    Alert.alert(
+                      "Coming soon",
+                      "Import from device contacts is not wired yet.",
+                    )
+                  }
                   className="bg-card border border-border rounded-xl px-4 py-3"
                   activeOpacity={0.85}
                 >
-                  <Text className="text-foreground font-medium">Upload from contacts</Text>
-                  <Text className="text-xs text-muted-foreground mt-1">Import from device contacts</Text>
+                  <Text className="text-foreground font-medium">
+                    Upload from contacts
+                  </Text>
+                  <Text className="text-xs text-muted-foreground mt-1">
+                    Import from device contacts
+                  </Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -437,8 +547,12 @@ export default function RecordTypeFormRenderer({
                   className="bg-card border border-border rounded-xl px-4 py-3"
                   activeOpacity={0.85}
                 >
-                  <Text className="text-foreground font-medium">Add from Vault Directory</Text>
-                  <Text className="text-xs text-muted-foreground mt-1">Choose an existing contact</Text>
+                  <Text className="text-foreground font-medium">
+                    Add from Vault Directory
+                  </Text>
+                  <Text className="text-xs text-muted-foreground mt-1">
+                    Choose an existing contact
+                  </Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -449,8 +563,12 @@ export default function RecordTypeFormRenderer({
                   className="bg-card border border-border rounded-xl px-4 py-3"
                   activeOpacity={0.85}
                 >
-                  <Text className="text-foreground font-medium">Create new contact</Text>
-                  <Text className="text-xs text-muted-foreground mt-1">Open Add Contact form</Text>
+                  <Text className="text-foreground font-medium">
+                    Create new contact
+                  </Text>
+                  <Text className="text-xs text-muted-foreground mt-1">
+                    Open Add Contact form
+                  </Text>
                 </TouchableOpacity>
               </View>
             ) : (
@@ -463,41 +581,14 @@ export default function RecordTypeFormRenderer({
                   onChangeText={setContactSearch}
                 />
 
-                <ScrollView keyboardShouldPersistTaps="handled">
-                  <View className="gap-2 pb-6">
-                    {contacts
-                      .filter((c) => {
-                        const q = contactSearch.trim().toLowerCase();
-                        if (!q) return true;
-                        const name = getContactDisplayName(c).toLowerCase();
-                        return name.includes(q) || (c.phone || "").toLowerCase().includes(q);
-                      })
-                      .map((c) => (
-                        <TouchableOpacity
-                          key={c.id}
-                          onPress={() => setPickedContact(c.id)}
-                          className="bg-card border border-border rounded-xl px-4 py-3"
-                          activeOpacity={0.85}
-                        >
-                          <Text className="text-foreground font-medium">{getContactDisplayName(c) || "Unnamed contact"}</Text>
-                          <Text className="text-xs text-muted-foreground mt-1">{c.phone || "No phone"}</Text>
-                        </TouchableOpacity>
-                      ))}
-
-                    {contacts.length === 0 ? (
-                      <View className="bg-card border border-border rounded-xl px-4 py-3">
-                        <Text className="text-sm text-muted-foreground">No contacts in Vault Directory yet.</Text>
-                      </View>
-                    ) : null}
-                  </View>
-                </ScrollView>
-
                 <TouchableOpacity
                   onPress={() => setContactMode("actions")}
                   className="self-start px-3 py-1.5 rounded-full bg-muted"
                   activeOpacity={0.85}
                 >
-                  <Text className="text-xs font-medium text-foreground">Back</Text>
+                  <Text className="text-xs font-medium text-foreground">
+                    Back
+                  </Text>
                 </TouchableOpacity>
               </View>
             )}

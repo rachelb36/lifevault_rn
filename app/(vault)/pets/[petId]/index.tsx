@@ -14,7 +14,9 @@
  */
 import React, { useCallback, useMemo, useState } from "react";
 import {
+  Alert,
   Image,
+  Linking,
   Pressable,
   ScrollView,
   Text,
@@ -24,19 +26,21 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   ArrowLeft,
+  Camera,
   PawPrint,
   Settings,
   Share2,
 } from "lucide-react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
+import * as ImagePicker from "expo-image-picker";
 
 import KeyboardDismiss from "@/shared/ui/KeyboardDismiss";
 import ProfileShareModal from "@/shared/ui/ProfileShareModal";
 import SectionRecordRows from "@/shared/ui/SectionRecordRows";
 import { ShareSection, shareProfilePdf } from "@/shared/share/profilePdf";
 
-import { findProfile } from "@/features/profiles/data/storage";
+import { findProfile, upsertProfile } from "@/features/profiles/data/storage";
 import type { PetProfile } from "@/features/profiles/domain/types";
 
 import { PET_CATEGORY_ORDER, RecordCategory } from "@/domain/records/recordCategories";
@@ -46,6 +50,8 @@ import { listRecordsForEntity } from "@/features/records/data/storage";
 import type { LifeVaultRecord } from "@/domain/records/record.model";
 import { Contact, getContacts } from "@/features/contacts/data/storage";
 import { getRecordData } from "@/shared/utils/recordData";
+import { LineChart } from "react-native-gifted-charts";
+import { useColorScheme } from "@/lib/useColorScheme";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -118,27 +124,114 @@ export default function PetDetailScreen() {
     return pet.kind || pet.kindOtherText || "Pet";
   }, [pet]);
 
-  const overviewRecord = useMemo(
-    () => records.find((r) => r.recordType === RECORD_TYPES.PET_OVERVIEW),
-    [records],
-  );
-
   const ageLabel = useMemo(() => {
-    // Prefer dob from profile header; fall back to PET_OVERVIEW record
-    const profileDob = pet?.dob;
-    if (profileDob) return computeAge(profileDob);
-    if (!overviewRecord) return null;
-    const data = getRecordData(overviewRecord);
-    return computeAge(String(data.dob || ""));
-  }, [pet?.dob, overviewRecord]);
+    if (pet?.dob) return computeAge(pet.dob);
+    if (pet?.adoptionDate) return computeAge(pet.adoptionDate);
+    return null;
+  }, [pet?.dob, pet?.adoptionDate]);
+
+  const dateLabel = useMemo(() => {
+    const fmt = (iso: string) => {
+      const d = new Date(iso);
+      if (isNaN(d.getTime())) return iso;
+      return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    };
+    if (pet?.dateType === "adoptionDate" && pet.adoptionDate) {
+      return `Adopted: ${fmt(pet.adoptionDate)}`;
+    }
+    if (pet?.dob) return `DOB: ${fmt(pet.dob)}`;
+    return null;
+  }, [pet?.dateType, pet?.dob, pet?.adoptionDate]);
 
   const genderLabel = useMemo(() => {
-    // Prefer gender from profile header; fall back to PET_OVERVIEW record
-    if (pet?.gender) return pet.gender;
-    if (!overviewRecord) return null;
-    const data = getRecordData(overviewRecord);
-    return String(data.gender || "").trim() || null;
-  }, [pet?.gender, overviewRecord]);
+    return pet?.gender || null;
+  }, [pet?.gender]);
+
+  const { colorScheme } = useColorScheme();
+  const isDark = colorScheme === "dark";
+
+  const weightChartData = useMemo(() => {
+    const entries = records
+      .filter((r) => r.recordType === RECORD_TYPES.PET_WEIGHT_ENTRY)
+      .map((r) => {
+        const d = getRecordData(r);
+        const w = parseFloat(String(d.weightValue || ""));
+        const dateStr = String(d.measuredAt || "");
+        return { weight: w, date: dateStr };
+      })
+      .filter((e) => Number.isFinite(e.weight) && e.date)
+      .sort((a, b) => a.date.localeCompare(b.date));
+    if (entries.length < 2) return null;
+    return entries.map((e) => ({
+      value: e.weight,
+      label: new Date(e.date).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+    }));
+  }, [records]);
+
+  const pickAvatar = useCallback(() => {
+    if (!pet) return;
+
+    const saveAvatar = async (uri: string | undefined) => {
+      const updated = { ...pet, avatarUri: uri, updatedAt: new Date().toISOString() };
+      await upsertProfile(updated);
+      setPet(updated);
+    };
+
+    const fromLibrary = async () => {
+      try {
+        const res = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ["images"],
+          quality: 0.8,
+          allowsEditing: true,
+          aspect: [1, 1],
+        });
+        if (!res.canceled && res.assets?.[0]?.uri) {
+          await saveAvatar(res.assets[0].uri);
+        }
+      } catch (e: any) {
+        Alert.alert("Error", e?.message ?? "Failed to open photo library.");
+      }
+    };
+
+    const fromCamera = async () => {
+      try {
+        const perm = await ImagePicker.requestCameraPermissionsAsync();
+        if (!perm.granted) {
+          if (!perm.canAskAgain) {
+            Alert.alert("Camera access needed", "Camera permission was denied. Please enable it in Settings.", [
+              { text: "Cancel", style: "cancel" },
+              { text: "Open Settings", onPress: () => Linking.openSettings() },
+            ]);
+          } else {
+            Alert.alert("Camera access needed", "Please allow camera access to take a photo.");
+          }
+          return;
+        }
+        const res = await ImagePicker.launchCameraAsync({
+          mediaTypes: ["images"],
+          quality: 0.8,
+          allowsEditing: true,
+          aspect: [1, 1],
+        });
+        if (!res.canceled && res.assets?.[0]?.uri) {
+          await saveAvatar(res.assets[0].uri);
+        }
+      } catch (e: any) {
+        Alert.alert("Error", e?.message ?? "Failed to open camera.");
+      }
+    };
+
+    const buttons: any[] = [
+      { text: "Choose from Library", onPress: fromLibrary },
+      { text: "Take Photo", onPress: fromCamera },
+    ];
+    if (pet.avatarUri) {
+      buttons.push({ text: "Remove Photo", style: "destructive", onPress: () => saveAvatar(undefined) });
+    }
+    buttons.push({ text: "Cancel", style: "cancel" });
+
+    Alert.alert("Pet Photo", undefined, buttons);
+  }, [pet]);
 
   const visibleCategoryOrder = useMemo(
     () => PET_CATEGORY_ORDER,
@@ -146,7 +239,6 @@ export default function PetDetailScreen() {
   );
 
   const shareSections: ShareSection[] = useMemo(() => {
-    const overviewData = overviewRecord ? getRecordData(overviewRecord) : {};
     const basicsRecord = records.find(
       (r) => r.recordType === RECORD_TYPES.PET_BASICS,
     );
@@ -160,21 +252,17 @@ export default function PetDetailScreen() {
           `Name: ${displayName || "-"}`,
           `Type: ${kindLabel || "-"}`,
           `Breed: ${pet?.breed || "-"}`,
-          `Gender: ${genderLabel || String(overviewData.gender || "-")}`,
+          `Gender: ${genderLabel || "-"}`,
           `Weight: ${String(basicsData.currentWeightValue || "-")} ${String(basicsData.currentWeightUnit || "")}`.trim(),
           `Microchip ID: ${String(basicsData.microchipId || "-")}`,
-          overviewData.dob
-            ? `DOB: ${String(overviewData.dob)}`
-            : "",
-          overviewData.adoptionDate
-            ? `Adoption Date: ${String(overviewData.adoptionDate)}`
-            : "",
+          dateLabel || "",
+          ageLabel ? `Age: ${ageLabel}` : "",
         ]
           .filter(Boolean)
           .join("\n"),
       },
     ];
-  }, [displayName, kindLabel, pet, overviewRecord, records, genderLabel]);
+  }, [displayName, kindLabel, pet, records, genderLabel, dateLabel, ageLabel]);
 
   // ── Navigation handlers ────────────────────────────────────────────────
 
@@ -276,30 +364,69 @@ export default function PetDetailScreen() {
         >
           {/* Profile card */}
           <View className="p-6">
-            <View className="bg-card rounded-2xl p-6 items-center shadow-sm">
-              {pet.avatarUri ? (
-                <Image
-                  source={{ uri: pet.avatarUri }}
-                  className="w-24 h-24 rounded-full mb-4"
-                  style={{ borderWidth: 3, borderColor: "rgb(244 244 245)" }}
-                />
-              ) : (
-                <View
-                  className="w-24 h-24 rounded-full mb-4 bg-muted items-center justify-center"
-                  style={{ borderWidth: 3, borderColor: "rgb(244 244 245)" }}
-                >
-                  <PawPrint size={32} className="text-muted-foreground" />
+            <View className="bg-card rounded-2xl p-5 items-center shadow-sm">
+              {/* Tappable avatar */}
+              <TouchableOpacity onPress={pickAvatar} activeOpacity={0.85} className="relative mb-3">
+                <View className="w-24 h-24 rounded-full bg-muted overflow-hidden border-4 border-background items-center justify-center">
+                  {pet.avatarUri ? (
+                    <Image source={{ uri: pet.avatarUri }} className="w-24 h-24" />
+                  ) : (
+                    <PawPrint size={36} className="text-muted-foreground" />
+                  )}
                 </View>
-              )}
+                <View className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-primary items-center justify-center border-2 border-background">
+                  <Camera size={14} className="text-primary-foreground" />
+                </View>
+              </TouchableOpacity>
 
-              <Text className="text-2xl font-bold text-foreground mb-1">
+              <Text className="text-2xl font-bold text-foreground text-center">
                 {displayName}
               </Text>
-              <Text className="text-muted-foreground">
-                {[pet.breed, kindLabel, genderLabel, ageLabel].filter(Boolean).join(" · ")}
-              </Text>
+              {pet.breed || kindLabel ? (
+                <Text className="text-sm text-muted-foreground mt-0.5 text-center">
+                  {[pet.breed, kindLabel].filter(Boolean).join(" · ")}
+                </Text>
+              ) : null}
+              {(genderLabel || dateLabel || ageLabel) ? (
+                <Text className="text-sm text-muted-foreground mt-0.5 text-center">
+                  {[genderLabel, dateLabel, ageLabel].filter(Boolean).join(" · ")}
+                </Text>
+              ) : null}
             </View>
           </View>
+
+          {/* Weight history chart */}
+          {weightChartData && (
+            <View className="px-6 mb-2">
+              <View className="bg-card rounded-2xl p-4 shadow-sm">
+                <Text className="text-sm font-semibold text-foreground mb-3">
+                  Weight History
+                </Text>
+                <LineChart
+                  data={weightChartData}
+                  height={120}
+                  curved
+                  color="#6366f1"
+                  dataPointsColor="#6366f1"
+                  thickness={2}
+                  hideRules
+                  xAxisLabelTextStyle={{
+                    fontSize: 10,
+                    color: isDark ? "#a1a1aa" : "#71717a",
+                  }}
+                  yAxisTextStyle={{
+                    fontSize: 10,
+                    color: isDark ? "#a1a1aa" : "#71717a",
+                  }}
+                  yAxisColor="transparent"
+                  xAxisColor="transparent"
+                  spacing={60}
+                  adjustToWidth
+                  isAnimated
+                />
+              </View>
+            </View>
+          )}
 
           {/* Flat summary rows by category */}
           <View className="px-6">

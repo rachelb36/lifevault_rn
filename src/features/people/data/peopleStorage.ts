@@ -1,7 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import type { PersonProfileV1 } from "@/features/people/domain/person.schema";
-import { normalizePersonList } from "@/features/people/domain/person.migrate";
+import { normalizePersonList } from "@/features/people/domain/person.normalize";
 
 export const PEOPLE_KEY = "people_v1";
 

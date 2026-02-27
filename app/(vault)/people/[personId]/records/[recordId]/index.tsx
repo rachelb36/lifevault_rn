@@ -21,7 +21,6 @@ export default function PersonRecordDetailScreen() {
   return (
     <RecordDetailScreen
       entityId={personId ? String(personId) : ""}
-      entityType="person"
       recordId={recordId ? String(recordId) : ""}
       editRoutePath="/(vault)/people/[personId]/records/[recordId]/edit"
       entityParamKey="personId"
